@@ -8,6 +8,7 @@ import (
 
 var (
 	RssConfigDict map[string][]RssConfig
+	rssJsonPath   string
 )
 
 type RssConfig struct {
@@ -18,12 +19,16 @@ type RssConfig struct {
 	Expiration uint   `json:"expiration,omitempty"`
 }
 
-func ReadRssConfigDict(path string) *map[string][]RssConfig {
-	if path == "" {
-		path = "rss.json"
+func SetRssJsonPath(p string) {
+	rssJsonPath = p
+}
+
+func ReadRssConfigDict() *map[string][]RssConfig {
+	if rssJsonPath == "" {
+		rssJsonPath = "rss.json"
 	}
 	// read config
-	file, err := os.ReadFile(path)
+	file, err := os.ReadFile(rssJsonPath)
 	if err != nil {
 		return nil
 	}
@@ -38,7 +43,7 @@ func GetRssConfigByURL(url string) *RssConfig {
 	if err != nil {
 		return nil
 	}
-	ReadRssConfigDict("")
+	ReadRssConfigDict()
 	configs, ok := RssConfigDict[urlObj.Host]
 	if !ok {
 		return &RssConfig{

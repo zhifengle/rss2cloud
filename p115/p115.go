@@ -125,7 +125,7 @@ func (ag *Agent) AddRssUrlTask(url string) {
 }
 
 func (ag *Agent) ExecuteAllRssTask() {
-	rssDict := rsssite.ReadRssConfigDict("")
+	rssDict := rsssite.ReadRssConfigDict()
 	for _, configs := range *rssDict {
 		for _, config := range configs {
 			magnetItems := rsssite.GetMagnetItemList(&config)

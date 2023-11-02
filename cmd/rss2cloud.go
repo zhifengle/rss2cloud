@@ -11,10 +11,11 @@ import (
 )
 
 var (
-	pAgent  *p115.Agent
-	rssUrl  string
-	cookies string
-	rootCmd = &cobra.Command{
+	pAgent      *p115.Agent
+	rssUrl      string
+	cookies     string
+	rssJsonPath string
+	rootCmd     = &cobra.Command{
 		Use:   "rss2cloud",
 		Short: `Add offline tasks to 115`,
 		Run: func(_cmd *cobra.Command, _args []string) {
@@ -35,6 +36,9 @@ var (
 		Short: `Add magnet tasks to 115`,
 		Run: func(_cmd *cobra.Command, _args []string) {
 			initAgent()
+			if rssJsonPath != "" {
+				rsssite.SetRssJsonPath(rssJsonPath)
+			}
 			magnets := []string{}
 			if textFile != "" {
 				var err error
@@ -63,6 +67,7 @@ func Execute() {
 func init() {
 	rootCmd.Flags().StringVarP(&rssUrl, "url", "u", "", "rss url")
 	rootCmd.Flags().StringVar(&cookies, "cookies", "", "115 cookies. if empty, read it from node-site-config.json")
+	rootCmd.Flags().StringVarP(&rssJsonPath, "rss", "r", "", "rss json path")
 	magnetCmd.Flags().StringVarP(&linkUrl, "link", "l", "", "magnet link")
 	magnetCmd.Flags().StringVar(&cid, "cid", "", "cid")
 	magnetCmd.Flags().StringVar(&textFile, "text", "", "text file")
