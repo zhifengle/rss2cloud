@@ -2,8 +2,11 @@ package p115
 
 import (
 	"errors"
+	"fmt"
 	"log"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/deadblue/elevengo"
 	"github.com/deadblue/elevengo/option"
@@ -36,7 +39,20 @@ func parseCookies(cookiesString string) map[string]string {
 
 	return cookies
 }
+
 func New() (*Agent, error) {
+	cookies := LoadCookies()
+	if cookies != "" {
+		agent, err := NewAgent(cookies)
+		// cookies is invalid
+		if err != nil {
+			return QrcodeLogin()
+		}
+		return agent, nil
+	}
+	return QrcodeLogin()
+}
+func NewAgentByConfig() (*Agent, error) {
 	config := request.ReadNodeSiteConfig()
 	if p115Config, ok := config["115.com"]; ok {
 		cookies, ok := p115Config.Headers["cookie"]
@@ -126,5 +142,70 @@ func (ag *Agent) AddMagnetTask(magnets []string, cid string) {
 			return
 		}
 		log.Printf("[magnet] add %d tasks\n", len(urls))
+	}
+}
+
+func SaveCookies(agent *elevengo.Agent) {
+	cr := &elevengo.Credential{}
+	agent.CredentialExport(cr)
+	cookies := fmt.Sprintf("UID=%s; CID=%s; SEID=%s", cr.UID, cr.CID, cr.SEID)
+	os.WriteFile(".cookies", []byte(cookies), 0644)
+}
+
+func LoadCookies() string {
+	// check if .cookies exists
+	if _, err := os.Stat(".cookies"); err != nil {
+		return ""
+	}
+	cookies, err := os.ReadFile(".cookies")
+	if err != nil {
+		return ""
+	}
+	return string(cookies)
+}
+
+func QrcodeLogin() (*Agent, error) {
+	agent := elevengo.Default()
+	session := &elevengo.QrcodeSession{}
+	err := agent.QrcodeStart(session)
+	if err != nil {
+		return nil, err
+	}
+	err = DisplayQrcode(session.Image)
+	if err != nil {
+		return nil, err
+	}
+	// 0: success
+	// 1: cancel
+	done := make(chan int)
+	go func() {
+		for {
+			time.Sleep(300 * time.Second)
+			success, err := agent.QrcodePoll(session)
+			if success {
+				done <- 0
+				return
+			}
+			if err != nil && err == elevengo.ErrQrcodeCancelled {
+				done <- 1
+				return
+			}
+		}
+	}()
+	select {
+	case res := <-done:
+		if res == 1 {
+			return nil, errors.New("login cancelled")
+		}
+		SaveCookies(agent)
+
+		return &Agent{
+			Agent:         agent,
+			StoreInstance: store.New(nil),
+		}, nil
+	case <-time.After(5 * time.Minute):
+		return nil, errors.New("login timed out")
+	default:
+		return nil, errors.New("unexpected error")
 	}
 }
