@@ -8,7 +8,9 @@
 
 支持 RSS 源: nyaa, dmhy, mikanni
 
-Rust 版本 [rss2pan](https://github.com/zhifengle/rss2pan) 使用的 Web API 添加离线任务，容易触发验证码
+Rust 版本 [rss2pan](https://github.com/zhifengle/rss2pan) 使用的 Web API 添加离线任务。
+
+移除读取浏览器 cookies 的功能。需要此功能使用 [gcookie](https://github.com/zhifengle/gcookie)
 
 TODO
 
