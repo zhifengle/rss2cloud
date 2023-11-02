@@ -1,0 +1,14 @@
+{
+  "share.dmhy.org": {
+    "httpsAgent": "httpsAgent"
+  },
+  "nyaa.si": {
+    "httpsAgent": "httpsAgent"
+  },
+  "sukebei.nyaa.si": {
+    "httpsAgent": "httpsAgent"
+  },
+  "mikanani.me": {
+    "httpsAgent": "httpsAgent"
+  }
+}

@@ -1,0 +1,21 @@
+{
+    "mikanani.me": [
+        {
+            "name": "test",
+            "filter": "简体内嵌",
+            "url": "https://mikanani.me/RSS/Bangumi?bangumiId=2739&subgroupid=12"
+        },
+        {
+            "name": "test07",
+            "filter": "07",
+            "url": "https://mikanani.me/RSS/Bangumi?bangumiId=2739"
+        }
+    ],
+    "share.dmhy.org": [
+        {
+            "name": "水星的魔女",
+            "filter": "简日双语",
+            "url": "https://share.dmhy.org/topics/rss/rss.xml?keyword=%E6%B0%B4%E6%98%9F%E7%9A%84%E9%AD%94%E5%A5%B3&sort_id=2&team_id=0&order=date-desc"
+        }
+    ]
+}
