@@ -12,9 +12,12 @@ Rust 版本 [rss2pan](https://github.com/zhifengle/rss2pan) 使用的 Web API �
 
 移除读取浏览器 cookies 的功能。需要此功能使用 [gcookie](https://github.com/zhifengle/gcookie)
 
-TODO
-
-- [ ] 二维码登录
+```bat
+REM 使用 gcookie 读取浏览器的 cookie
+gcookie.exe 115.com > .cookies
+REM rss2cloud 会读取 .cookies 文件
+rss2cloud.exe
+```
 
 ## 用法
 
@@ -27,6 +30,8 @@ TODO
 rss2cloud -h
 # 直接运行。读取 rss.json，依次添加离线任务
 rss2cloud
+# 使用二维码登录
+rss2cloud -q
 
 # 指定 rss URL 离线下载
 # 如果 rss.json 存在这条url 的配置，会读取配置。没有配置，默认离线到 115 的默认目录

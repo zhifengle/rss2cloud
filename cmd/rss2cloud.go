@@ -15,6 +15,7 @@ var (
 	rssUrl      string
 	cookies     string
 	rssJsonPath string
+	qrLogin     bool
 	rootCmd     = &cobra.Command{
 		Use:   "rss2cloud",
 		Short: `Add offline tasks to 115`,
@@ -68,6 +69,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&rssUrl, "url", "u", "", "rss url")
 	rootCmd.Flags().StringVar(&cookies, "cookies", "", "115 cookies. if empty, read it from node-site-config.json")
 	rootCmd.Flags().StringVarP(&rssJsonPath, "rss", "r", "", "rss json path")
+	rootCmd.Flags().BoolVarP(&qrLogin, "qrcode", "q", false, "login 115 by qrcode. Windows only")
 	magnetCmd.Flags().StringVarP(&linkUrl, "link", "l", "", "magnet link")
 	magnetCmd.Flags().StringVar(&cid, "cid", "", "cid")
 	magnetCmd.Flags().StringVar(&textFile, "text", "", "text file")
@@ -78,13 +80,12 @@ func initAgent() {
 	var err error
 	if cookies != "" {
 		pAgent, err = p115.NewAgent(cookies)
-		if err != nil {
-			log.Fatalln(err)
-		}
+	} else if qrLogin {
+		pAgent, err = p115.NewAgentByQrcode()
 	} else {
 		pAgent, err = p115.New()
-		if err != nil {
-			log.Fatalln(err)
-		}
+	}
+	if err != nil {
+		log.Fatalln(err)
 	}
 }

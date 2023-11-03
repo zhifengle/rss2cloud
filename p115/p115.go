@@ -46,6 +46,19 @@ func New() (*Agent, error) {
 		agent, err := NewAgent(cookies)
 		// cookies is invalid
 		if err != nil {
+			return nil, err
+		}
+		return agent, nil
+	}
+	return nil, errors.New(".cookies is empty or not exist")
+}
+
+func NewAgentByQrcode() (*Agent, error) {
+	cookies := LoadCookies()
+	if cookies != "" {
+		agent, err := NewAgent(cookies)
+		// cookies is invalid
+		if err != nil {
 			return QrcodeLogin()
 		}
 		return agent, nil
@@ -175,37 +188,25 @@ func QrcodeLogin() (*Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	// 0: success
-	// 1: cancel
-	done := make(chan int)
-	go func() {
-		for {
-			time.Sleep(300 * time.Second)
-			success, err := agent.QrcodePoll(session)
-			if success {
-				done <- 0
-				return
-			}
-			if err != nil && err == elevengo.ErrQrcodeCancelled {
-				done <- 1
-				return
-			}
+	now := time.Now()
+	after := now.Add(2 * time.Minute)
+	for {
+		time.Sleep(200 * time.Millisecond)
+		success, err := agent.QrcodePoll(session)
+		if success {
+			SaveCookies(agent)
+			DisposeQrcode()
+
+			return &Agent{
+				Agent:         agent,
+				StoreInstance: store.New(nil),
+			}, nil
 		}
-	}()
-	select {
-	case res := <-done:
-		if res == 1 {
+		if err != nil && err == elevengo.ErrQrcodeCancelled {
 			return nil, errors.New("login cancelled")
 		}
-		SaveCookies(agent)
-
-		return &Agent{
-			Agent:         agent,
-			StoreInstance: store.New(nil),
-		}, nil
-	case <-time.After(5 * time.Minute):
-		return nil, errors.New("login timed out")
-	default:
-		return nil, errors.New("unexpected error")
+		if now.After(after) {
+			return nil, errors.New("login timed out")
+		}
 	}
 }

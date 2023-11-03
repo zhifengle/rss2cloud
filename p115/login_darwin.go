@@ -13,7 +13,7 @@ func DisplayQrcode(img []byte) error {
 		return err
 	}
 
-	cmd := exec.Command("cmd", "/c", "start", imageName)
+	cmd := exec.Command("open", imageName)
 	err = cmd.Start()
 	if err != nil {
 		return err
