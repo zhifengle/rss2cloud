@@ -32,6 +32,8 @@ rss2cloud -h
 rss2cloud
 # 使用二维码登录
 rss2cloud -q
+# 使用cookies
+rss2cloud --cookies "yourcookies"
 
 # 指定 rss URL 离线下载
 # 如果 rss.json 存在这条url 的配置，会读取配置。没有配置，默认离线到 115 的默认目录
@@ -113,27 +115,7 @@ cid 是离线到指定的文件夹的 id 。
     }
   },
   "mikanani.me": {
-    "httpsAgent": "httpsAgent",
-    "headers": {
-      "Referer": "https://mikanani.me/"
-    }
-  }
-}
-```
-
-#### cookie 配置
-
-```bash
-# 查看帮助
-rss2cloud --cookies "yourcookies"
-```
-
-```json
-{
-  "115.com": {
-    "headers": {
-      "cookie": "yourcookie"
-    }
+    "httpsAgent": "httpsAgent"
   }
 }
 ```
