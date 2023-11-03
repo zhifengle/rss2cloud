@@ -21,6 +21,9 @@ var (
 		Short: `Add offline tasks to 115`,
 		Run: func(_cmd *cobra.Command, _args []string) {
 			initAgent()
+			if rssJsonPath != "" {
+				rsssite.SetRssJsonPath(rssJsonPath)
+			}
 			if rssUrl != "" {
 				pAgent.AddRssUrlTask(rssUrl)
 				return
@@ -37,9 +40,6 @@ var (
 		Short: `Add magnet tasks to 115`,
 		Run: func(_cmd *cobra.Command, _args []string) {
 			initAgent()
-			if rssJsonPath != "" {
-				rsssite.SetRssJsonPath(rssJsonPath)
-			}
 			magnets := []string{}
 			if textFile != "" {
 				var err error
