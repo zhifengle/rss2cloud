@@ -48,7 +48,8 @@ rss2cloud magnet --txt magnet.txt --cid "12345"
 
 ## 配置
 
-### 配置文件 rss.json
+<details>
+<summary><code><strong>「 点击查看 配置文件 rss.json 」</strong></code></summary>
 
 ```json
 {
@@ -84,6 +85,8 @@ rss2cloud magnet --txt magnet.txt --cid "12345"
 }
 ```
 
+</details>
+
 配置了 `filter` 后，标题包含该文字的会被离线。不设置 `filter` 默认离线全部
 
 `/简体|\\d{3-4}[pP]/` 使用斜线包裹的正则规则。注意转义规则
@@ -94,7 +97,8 @@ cid 是离线到指定的文件夹的 id 。
 
 > 其中 2479224057885794455 就是 cid
 
-### node-site-config.json 配置
+<details>
+<summary><code><strong>「 点击查看 node-site-config.json 配置 」</strong></code></summary>
 
 配置示例。 设置 【httpsAgent】 表示使用代理连接对应网站。不想使用代理删除对应的配置。
 
@@ -120,6 +124,8 @@ cid 是离线到指定的文件夹的 id 。
 }
 ```
 
+</details>
+
 ### proxy 配置
 
 设置【httpsAgent】会使用代理。默认使用的地址 `http://127.0.0.1:10809`。
@@ -129,6 +135,9 @@ cid 是离线到指定的文件夹的 id 。
 需要自定义代理时，在命令行设置 Windows: set ALL_PROXY=http://youraddr:port
 
 > Linux: export ALL_PROXY=http://youraddr:port
+
+<details>
+<summary><code><strong>「 点击查看 批处理脚本 」</strong></code></summary>
 
 ```batch
 @ECHO off
@@ -143,10 +152,8 @@ SET dp0=%~dp0
 EXIT /b
 ```
 
+</details>
+
 把上面的 batch 例子改成自己的代理地址。另存为 rss2cloud.cmd 和 rss2cloud.exe 放在一个目录下面。
 
 在命令行运行 rss2cloud.cmd 就能够使用自己的代理的了。
-
-### 日志的环境变量
-
-不想看日志时，Windows: set RUST_LOG=error
