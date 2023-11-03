@@ -1,6 +1,7 @@
 name: Release
 
 on:
+  workflow_dispatch:
   release:
     types: [created]
 
@@ -16,12 +17,16 @@ jobs:
       matrix:
         # goos: [linux, windows, darwin]
         goos: [linux, windows]
-        goarch: ["386", amd64]
+        goarch: [amd64]
         exclude:
           - goarch: "386"
             goos: windows
     steps:
     - uses: actions/checkout@v3
+    - uses: egor-tensin/setup-gcc@v1
+      with:
+        version: latest
+        platform: x64
     - uses: wangyoucao577/go-release-action@v1
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
