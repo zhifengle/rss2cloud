@@ -16,17 +16,31 @@ jobs:
     strategy:
       matrix:
         # goos: [linux, windows, darwin]
-        goos: [linux, windows]
-        goarch: [amd64]
+        goos: [linux]
+        goarch: ["386", amd64]
         exclude:
           - goarch: "386"
             goos: windows
     steps:
     - uses: actions/checkout@v3
+    - uses: wangyoucao577/go-release-action@v1
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        goos: ${{ matrix.goos }}
+        goarch: ${{ matrix.goarch }}
+  releases-windows:
+    name: Release Go Binary
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        goos: [windows]
+        goarch: [amd64]
+    steps:
     - uses: egor-tensin/setup-gcc@v1
       with:
         version: latest
         platform: x64
+    - uses: actions/checkout@v3
     - uses: wangyoucao577/go-release-action@v1
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
