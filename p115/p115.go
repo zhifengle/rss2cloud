@@ -103,14 +103,19 @@ func chunkBy[T any](items []T, chunkSize int) (chunks [][]T) {
 }
 
 func (ag *Agent) addCloudTasks(magnetItems []rsssite.MagnetItem, config *rsssite.RssConfig) {
+	emptyNum := 0
 	filterdItems := make([]rsssite.MagnetItem, 0)
 	for _, item := range magnetItems {
 		if item.Magnet == "" {
+			emptyNum += 1
 			continue
 		}
 		if !ag.StoreInstance.HasItem(item.Magnet) {
 			filterdItems = append(filterdItems, item)
 		}
+	}
+	if emptyNum != 0 {
+		log.Printf("[warning] [%s] has %d empty task", config.Name, emptyNum)
 	}
 	if len(filterdItems) == 0 {
 		log.Printf("[%s] has 0 task", config.Name)
