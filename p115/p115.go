@@ -105,6 +105,9 @@ func chunkBy[T any](items []T, chunkSize int) (chunks [][]T) {
 func (ag *Agent) addCloudTasks(magnetItems []rsssite.MagnetItem, config *rsssite.RssConfig) {
 	filterdItems := make([]rsssite.MagnetItem, 0)
 	for _, item := range magnetItems {
+		if item.Magnet == "" {
+			continue
+		}
 		if !ag.StoreInstance.HasItem(item.Magnet) {
 			filterdItems = append(filterdItems, item)
 		}
