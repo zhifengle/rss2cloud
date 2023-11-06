@@ -20,6 +20,23 @@ func TestReadNodeSiteConfig(t *testing.T) {
 
 func TestGet(t *testing.T) {
 	url := "https://httpbin.org/ip"
+	ReqSiteConfig["httpbin.org"] = SiteConfig{
+		HttpsAgent: "yes",
+	}
+	res, err := Get(url, nil)
+	if err != nil {
+		t.Error()
+	}
+	t.Log(res)
+}
+
+func TestGetWithProxy(t *testing.T) {
+	url := "https://httpbin.org/ip"
+	ReqSiteConfig["httpbin.org"] = SiteConfig{
+		HttpsAgent: "yes",
+	}
+	os.Setenv("http_proxy", "socks5://127.0.0.1:7890")
+	os.Setenv("https_proxy", "socks5://127.0.0.1:7890")
 	res, err := Get(url, nil)
 	if err != nil {
 		t.Error()

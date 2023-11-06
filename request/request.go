@@ -49,13 +49,18 @@ func Request(method, url string, body io.Reader, headers map[string]string) (*ht
 	}
 	req.Header.Set("User-Agent", ua)
 
-	p := http.ProxyFromEnvironment
+	var p func(*http.Request) (*urlPkg.URL, error)
 
 	curConfig, ok := ReqSiteConfig[req.URL.Host]
 	if ok {
 		if curConfig.HttpsAgent != "" {
-			proxy, _ := urlPkg.Parse(httpProxy)
-			p = http.ProxyURL(proxy)
+			u, _ := http.ProxyFromEnvironment(req)
+			if u == nil {
+				proxy, _ := urlPkg.Parse(httpProxy)
+				p = http.ProxyURL(proxy)
+			} else {
+				p = http.ProxyFromEnvironment
+			}
 		}
 		if curConfig.Headers != nil {
 			for k, v := range curConfig.Headers {

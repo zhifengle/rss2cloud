@@ -132,9 +132,9 @@ cid 是离线到指定的文件夹的 id 。
 
 > 【httpsAgent】沿用的 node 版的配置。
 
-需要自定义代理时，在命令行设置 Windows: set ALL_PROXY=http://youraddr:port
+需要自定义代理时，在命令行设置 Windows: set HTTPS_PROXY=http://youraddr:port
 
-> Linux: export ALL_PROXY=http://youraddr:port
+> Linux: export HTTPS_PROXY=http://youraddr:port
 
 <details>
 <summary><code><strong>「 点击查看 批处理脚本 」</strong></code></summary>
@@ -143,7 +143,7 @@ cid 是离线到指定的文件夹的 id 。
 @ECHO off
 SETLOCAL
 CALL :find_dp0
-REM set ALL_PROXY=http://youraddr:port
+REM set HTTPS_PROXY=http://youraddr:port
 rss2cloud.exe  %*
 ENDLOCAL
 EXIT /b %errorlevel%
