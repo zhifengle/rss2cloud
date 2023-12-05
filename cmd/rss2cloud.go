@@ -69,7 +69,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&rssUrl, "url", "u", "", "rss url")
 	rootCmd.Flags().StringVar(&cookies, "cookies", "", "115 cookies")
 	rootCmd.Flags().StringVarP(&rssJsonPath, "rss", "r", "", "rss json path")
-	rootCmd.Flags().BoolVarP(&qrLogin, "qrcode", "q", false, "login 115 by qrcode. Windows only")
+	rootCmd.Flags().BoolVarP(&qrLogin, "qrcode", "q", false, "login 115 by qrcode")
 	magnetCmd.Flags().StringVarP(&linkUrl, "link", "l", "", "magnet link")
 	magnetCmd.Flags().StringVar(&cid, "cid", "", "cid")
 	magnetCmd.Flags().StringVar(&textFile, "text", "", "text file")
