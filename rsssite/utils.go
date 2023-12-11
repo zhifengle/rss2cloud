@@ -17,7 +17,7 @@ func GetMagnetsFromText(textFile string) ([]string, error) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		text := scanner.Text()
-		if strings.HasPrefix(text, "magnet:?xt=urn:btih:") {
+		if strings.HasPrefix(text, "magnet:?xt=urn:btih:") || strings.HasPrefix(text, "ed2k://|file|") {
 			lines = append(lines, text)
 		}
 	}
