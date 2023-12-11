@@ -35,7 +35,7 @@ jobs:
         goos: [windows]
         goarch: [amd64]
     steps:
-    - uses: egor-tensin/setup-mingw@v1
+    - uses: egor-tensin/setup-mingw@v2
       with:
         version: latest
         platform: x64
