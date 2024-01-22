@@ -59,11 +59,15 @@ func GetMagnetItemList(config *RssConfig) []MagnetItem {
 		return nil
 	}
 	var itemList []MagnetItem
+	var re *regexp.Regexp
+	if strings.HasPrefix(config.Filter, "/") && strings.HasSuffix(config.Filter, "/") {
+		re = regexp.MustCompile(config.Filter[1 : len(config.Filter)-1])
+	}
 	for _, item := range feed.Items {
 		flag := true
 		if config.Filter != "" {
-			if strings.HasPrefix(config.Filter, "/") && strings.HasSuffix(config.Filter, "/") {
-				flag = regexp.MustCompile(config.Filter[1 : len(config.Filter)-1]).MatchString(item.Title)
+			if re != nil {
+				flag = re.MatchString(item.Title)
 			} else {
 				flag = strings.Contains(item.Title, config.Filter)
 			}
