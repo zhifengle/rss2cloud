@@ -21,7 +21,7 @@ jobs:
           - goarch: "386"
             goos: darwin
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: wangyoucao577/go-release-action@v1
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -30,6 +30,8 @@ jobs:
   releases-windows:
     name: Release Go Binary
     runs-on: windows-latest
+    env:
+      CGO_ENABLED: 1
     strategy:
       matrix:
         goos: [windows]
@@ -39,7 +41,7 @@ jobs:
       with:
         version: latest
         platform: x64
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: wangyoucao577/go-release-action@v1
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
