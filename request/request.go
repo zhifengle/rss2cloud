@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	urlPkg "net/url"
 	"os"
 	"path"
@@ -75,9 +76,14 @@ func Request(method, url string, body io.Reader, headers map[string]string) (*ht
 		TLSHandshakeTimeout: 10 * time.Second,
 		// TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
 	}
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, err
+	}
 	client := &http.Client{
 		Transport: transport,
 		Timeout:   20 * time.Second,
+		Jar:       jar,
 	}
 
 	for k, v := range headers {
