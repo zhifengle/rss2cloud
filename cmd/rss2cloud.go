@@ -11,12 +11,13 @@ import (
 )
 
 var (
-	pAgent      *p115.Agent
-	rssUrl      string
-	cookies     string
-	rssJsonPath string
-	qrLogin     bool
-	rootCmd     = &cobra.Command{
+	pAgent       *p115.Agent
+	rssUrl       string
+	cookies      string
+	rssJsonPath  string
+	qrLogin      bool
+	disableCache bool
+	rootCmd      = &cobra.Command{
 		Use:   "rss2cloud",
 		Short: `Add offline tasks to 115`,
 		Run: func(_cmd *cobra.Command, _args []string) {
@@ -73,10 +74,14 @@ func init() {
 	magnetCmd.Flags().StringVarP(&linkUrl, "link", "l", "", "magnet link")
 	magnetCmd.Flags().StringVar(&cid, "cid", "", "cid")
 	magnetCmd.Flags().StringVar(&textFile, "text", "", "text file")
+	rootCmd.Flags().BoolVar(&disableCache, "no-cache", false, "no cache")
 	rootCmd.AddCommand(magnetCmd)
 }
 
 func initAgent() {
+	if disableCache {
+		p115.SetOption(p115.Option{DisableCache: true})
+	}
 	var err error
 	if cookies != "" {
 		pAgent, err = p115.NewAgent(cookies)

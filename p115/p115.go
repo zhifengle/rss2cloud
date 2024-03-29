@@ -15,6 +15,16 @@ import (
 	"github.com/zhifengle/rss2cloud/store"
 )
 
+var disableCache = false
+
+type Option struct {
+	DisableCache bool
+}
+
+func SetOption(opt Option) {
+	disableCache = opt.DisableCache
+}
+
 type Agent struct {
 	Agent         *elevengo.Agent
 	StoreInstance *store.Store
@@ -110,7 +120,7 @@ func (ag *Agent) addCloudTasks(magnetItems []rsssite.MagnetItem, config *rsssite
 			emptyNum += 1
 			continue
 		}
-		if !ag.StoreInstance.HasItem(item.Magnet) {
+		if !disableCache && !ag.StoreInstance.HasItem(item.Magnet) {
 			filterdItems = append(filterdItems, item)
 		}
 	}
