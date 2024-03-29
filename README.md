@@ -38,6 +38,8 @@ rss2cloud --cookies "yourcookies"
 # 指定 rss URL 离线下载
 # 如果 rss.json 存在这条url 的配置，会读取配置。没有配置，默认离线到 115 的默认目录
 rss2cloud -u "https://mikanani.me/RSS/Bangumi?bangumiId=2739&subgroupid=12"
+# --no-cache 跳过检查 db.sqlite 里面缓存的
+rss2cloud --no-cache -u "https://mikanani.me/RSS/Bangumi?bangumiId=2739&subgroupid=12"
 
 # 查看 magnet 子命令帮助
 rss2cloud magnet -h

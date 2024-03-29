@@ -74,7 +74,7 @@ func init() {
 	magnetCmd.Flags().StringVarP(&linkUrl, "link", "l", "", "magnet link")
 	magnetCmd.Flags().StringVar(&cid, "cid", "", "cid")
 	magnetCmd.Flags().StringVar(&textFile, "text", "", "text file")
-	rootCmd.Flags().BoolVar(&disableCache, "no-cache", false, "no cache")
+	rootCmd.Flags().BoolVar(&disableCache, "no-cache", false, "skip checking cache in db.sqlite")
 	rootCmd.AddCommand(magnetCmd)
 }
 
