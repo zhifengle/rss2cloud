@@ -120,7 +120,7 @@ func (ag *Agent) addCloudTasks(magnetItems []rsssite.MagnetItem, config *rsssite
 			emptyNum += 1
 			continue
 		}
-		if !disableCache && !ag.StoreInstance.HasItem(item.Magnet) {
+		if disableCache || !ag.StoreInstance.HasItem(item.Magnet) {
 			filterdItems = append(filterdItems, item)
 		}
 	}
