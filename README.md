@@ -40,6 +40,9 @@ rss2cloud --cookies "yourcookies"
 rss2cloud -u "https://mikanani.me/RSS/Bangumi?bangumiId=2739&subgroupid=12"
 # --no-cache 跳过检查 db.sqlite 里面缓存的
 rss2cloud --no-cache -u "https://mikanani.me/RSS/Bangumi?bangumiId=2739&subgroupid=12"
+# --clear-task-type 清除离线任务。 1: 已完成的  2: 所有任务 3: 失败任务 4: 运行的任务 5: 完成并删除的任务 6: 所有的任务
+# 清除115任务列表里面已经完成的任务
+rss2cloud --clear-task-type 1
 
 # 查看 magnet 子命令帮助
 rss2cloud magnet -h
