@@ -175,6 +175,10 @@ func (ag *Agent) AddMagnetTask(magnets []string, cid string) {
 		log.Printf("[magnet] add %d tasks\n", len(urls))
 	}
 }
+func (ag *Agent) OfflineClear(num int) (err error) {
+	flag := elevengo.OfflineClearFlag(num)
+	return ag.Agent.OfflineClear(flag)
+}
 
 func SaveCookies(agent *elevengo.Agent) {
 	cr := &elevengo.Credential{}

@@ -17,6 +17,7 @@ var (
 	rssJsonPath  string
 	qrLogin      bool
 	disableCache bool
+	clearTaskNum int
 	rootCmd      = &cobra.Command{
 		Use:   "rss2cloud",
 		Short: `Add offline tasks to 115`,
@@ -27,6 +28,13 @@ var (
 			}
 			if rssUrl != "" {
 				pAgent.AddRssUrlTask(rssUrl)
+				return
+			}
+			if clearTaskNum > 0 {
+				err := pAgent.OfflineClear(clearTaskNum - 1)
+				if err != nil {
+					log.Fatalln(err)
+				}
 				return
 			}
 			pAgent.ExecuteAllRssTask()
@@ -75,6 +83,7 @@ func init() {
 	magnetCmd.Flags().StringVar(&cid, "cid", "", "cid")
 	magnetCmd.Flags().StringVar(&textFile, "text", "", "text file")
 	rootCmd.Flags().BoolVar(&disableCache, "no-cache", false, "skip checking cache in db.sqlite")
+	rootCmd.Flags().IntVar(&clearTaskNum, "clear-task-type", 0, "clear offline task type: 1-6.\n 1: OfflineClearDone\n 2: OfflineClearAll\n 3: OfflineClearFailed\n 4: OfflineClearRunning\n 5: OfflineClearDoneAndDelete\n 6: OfflineClearAllAndDelete")
 	rootCmd.AddCommand(magnetCmd)
 }
 
