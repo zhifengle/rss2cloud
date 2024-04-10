@@ -35,6 +35,8 @@ func getSite(url string) MagnetSite {
 		return &Nyaa{}
 	case "share.dmhy.org":
 		return &Dmhy{}
+	case "share.acgnx.se", "share.acgnx.net", "www.acgnx.se":
+		return &Acgnx{}
 	default:
 		return nil
 	}

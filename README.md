@@ -6,7 +6,7 @@
 
 基于 [deadblue/elevengo](https://github.com/deadblue/elevengo)
 
-支持 RSS 源: nyaa, dmhy, mikanni
+支持 RSS 源: nyaa, dmhy, mikanni, share.acgnx.net
 
 Rust 版本 [rss2pan](https://github.com/zhifengle/rss2pan) 使用的 Web API 添加离线任务。
 

@@ -16,6 +16,15 @@ func TestDmhy(t *testing.T) {
 	}
 }
 
+func TestAcgnx(t *testing.T) {
+	acgnx := &Acgnx{}
+	fp := gofeed.NewParser()
+	feed, _ := fp.ParseURL("https://share.acgnx.net/rss.xml")
+	for _, item := range feed.Items[:1] {
+		t.Log(acgnx.GetMagnetItem(item))
+	}
+}
+
 func TestGetRssConfigByURL(t *testing.T) {
 	rssConfig := GetRssConfigByURL("http://share.dmhy.org/topics/rss/rss.xml")
 	t.Log(rssConfig)
