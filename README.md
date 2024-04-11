@@ -2,11 +2,15 @@
 
 将 RSS 订阅离线下载到 115 网盘。
 
+支持批量添加 magnet, ed2k, http 链接到 115 离线任务
+
 ## 关于
 
 基于 [deadblue/elevengo](https://github.com/deadblue/elevengo)
 
 支持 RSS 源: nyaa, dmhy, mikanni, share.acgnx.net
+
+已添加的 RSS 任务记录保存在本地的同一目录下面的 db.sqlite 文件里
 
 Rust 版本 [rss2pan](https://github.com/zhifengle/rss2pan) 使用的 Web API 添加离线任务。
 

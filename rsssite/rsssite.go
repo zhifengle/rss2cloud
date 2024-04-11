@@ -1,6 +1,7 @@
 package rsssite
 
 import (
+	"log"
 	urlPkg "net/url"
 	"regexp"
 	"strings"
@@ -38,6 +39,7 @@ func getSite(url string) MagnetSite {
 	case "share.acgnx.se", "share.acgnx.net", "www.acgnx.se":
 		return &Acgnx{}
 	default:
+		log.Fatalln("unknown site: ", name)
 		return nil
 	}
 }
