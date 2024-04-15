@@ -39,26 +39,40 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           goos: ${{ matrix.goos }}
           goarch: ${{ matrix.goarch }}
-          ldflags: "-s -w -extldflags -static"
+          ldflags: '-s -w -extldflags -static'
           asset_name: rss2cloud-${{ inputs.release_tag }}-${{ matrix.goos }}-${{ matrix.goarch }}-musl
           release_tag: ${{ github.event.inputs.release_tag }}
   releases-darwin:
     if: ${{ github.event.inputs.jobType == 'darwin' || github.event.inputs.jobType == 'all' }}
     name: Release Go Binary
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        goos: [darwin]
-        goarch: [amd64, arm64]
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: wangyoucao577/go-release-action@v1
+      - name: Setup Go
+        uses: actions/setup-go@v4
         with:
-          pre_command: 'apt-get update && apt-get install clang -y && export CGO_ENABLED=1 && export CC=clang'
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          goos: ${{ matrix.goos }}
-          goarch: ${{ matrix.goarch }}
-          release_tag: ${{ github.event.inputs.release_tag }}
+          go-version: '1.20'
+          check-latest: true
+      - name: Install dependencies
+        run: |
+          export CGO_ENABLED=1
+          mkdir -p ./release-tmp
+          go get .
+      - name: Build
+        run: go build -ldflags "-s -w" -o ./release-tmp/
+      - name: Generate tar
+        run: |
+          mkdir release-ready
+          cd ./release-tmp
+          tar -zcvf ../release-ready/rss2cloud-${{ inputs.release_tag }}-darwin-arm64.tar.gz *
+      - name: Upload Release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ./release-ready/rss2cloud-${{ inputs.release_tag }}-darwin-arm64.tar.gz
+          tag: ${{ inputs.release_tag }}
+          overwrite: true
+
   releases-windows:
     if: ${{ github.event.inputs.jobType == 'windows' || github.event.inputs.jobType == 'all' }}
     name: Release Go Binary
