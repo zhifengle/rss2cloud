@@ -1,0 +1,78 @@
+name: Dispatch Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        type: string
+        description: 'Release Tag'
+        required: true
+      jobType:
+        type: choice
+        description: 'Job Type'
+        default: 'all'
+        required: true
+        options:
+          - all
+          - musl
+          - darwin
+          - windows
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  releases-musl:
+    if: ${{ github.event.inputs.jobType == 'musl' || github.event.inputs.jobType == 'all' }}
+    name: Release Go Binary
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux]
+        goarch: [amd64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: wangyoucao577/go-release-action@v1
+        with:
+          pre_command: 'export CGO_ENABLED=1'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          goos: ${{ matrix.goos }}
+          goarch: ${{ matrix.goarch }}
+          ldflags: "-s -w -extldflags -static"
+          asset_name: rss2cloud-${{ inputs.release_tag }}-${{ matrix.goos }}-${{ matrix.goarch }}-musl
+          release_tag: ${{ github.event.inputs.release_tag }}
+  releases-darwin:
+    if: ${{ github.event.inputs.jobType == 'darwin' || github.event.inputs.jobType == 'all' }}
+    name: Release Go Binary
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [darwin]
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: wangyoucao577/go-release-action@v1
+        with:
+          pre_command: 'apt-get update && apt-get install clang -y && export CGO_ENABLED=1 && export CC=clang'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          goos: ${{ matrix.goos }}
+          goarch: ${{ matrix.goarch }}
+          release_tag: ${{ github.event.inputs.release_tag }}
+  releases-windows:
+    if: ${{ github.event.inputs.jobType == 'windows' || github.event.inputs.jobType == 'all' }}
+    name: Release Go Binary
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [windows]
+        goarch: [amd64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: wangyoucao577/go-release-action@v1
+        with:
+          pre_command: 'apt-get update && apt-get install --no-install-recommends -y gcc-mingw-w64-x86-64 && export CGO_ENABLED=1 && export CC=x86_64-w64-mingw32-gcc'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          goos: ${{ matrix.goos }}
+          goarch: ${{ matrix.goarch }}
+          release_tag: ${{ github.event.inputs.release_tag }}
