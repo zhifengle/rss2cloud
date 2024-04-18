@@ -149,6 +149,8 @@ func (ag *Agent) addCloudTasks(magnetItems []rsssite.MagnetItem, config *rsssite
 func (ag *Agent) AddRssUrlTask(url string) {
 	config := rsssite.GetRssConfigByURL(url)
 	if config == nil {
+		pwd := os.Getenv("PWD")
+		log.Printf("config not found: %s for url: %s\n", pwd, url)
 		return
 	}
 	magnetItems := rsssite.GetMagnetItemList(config)
@@ -157,6 +159,11 @@ func (ag *Agent) AddRssUrlTask(url string) {
 
 func (ag *Agent) ExecuteAllRssTask() {
 	rssDict := rsssite.ReadRssConfigDict()
+	if rssDict == nil {
+		pwd := os.Getenv("PWD")
+		log.Printf("rss config not found: %s\n", pwd)
+		return
+	}
 	for _, configs := range *rssDict {
 		for _, config := range configs {
 			magnetItems := rsssite.GetMagnetItemList(&config)
