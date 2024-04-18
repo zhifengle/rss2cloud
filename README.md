@@ -166,3 +166,19 @@ EXIT /b
 把上面的 batch 例子改成自己的代理地址。另存为 rss2cloud.cmd 和 rss2cloud.exe 放在一个目录下面。
 
 在命令行运行 rss2cloud.cmd 就能够使用自己的代理的了。
+
+<details>
+<summary><code><strong>「 点击查看 配置 Linux 定时任务 」</strong></code></summary>
+假设 rss2cloud 目录在 `$HOME` 下面
+
+新建一个 rss2cloud.sh 的文件
+```bash
+#!/bin/bash
+cd "$(dirname "$0")"
+#export HTTPS_PROXY=http://youraddr:port
+$HOME/rss2cloud/rss2cloud >> $HOME/rss2cloud/logfile.log 2>&1
+```
+配置定时任务  `10 8 * * * $HOME/rss2cloud/rss2cloud.sh`
+
+不使用shell脚本，定时任务这样写  `10 8 * * * cd $HOME/rss2cloud && ./rss2cloud`
+</details>
