@@ -12,13 +12,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Create a Release
-        uses: elgohr/Github-Release-Action@v5
+      - uses: actions/checkout@v4
+      - id: create_release
+        uses: actions/create-release@v1
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          title: Release v${{ github.ref_name }}
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body_path: ./CHANGELOG.md
 
   releases-musl:
     name: Release musl Go Binary
@@ -36,8 +38,8 @@ jobs:
           goos: ${{ matrix.goos }}
           goarch: ${{ matrix.goarch }}
           ldflags: '-s -w -extldflags -static'
-          asset_name: rss2cloud-${{ github.event.release.tag_name }}-${{ matrix.goos }}-${{ matrix.goarch }}-musl
-          release_tag: ${{ github.event.release.tag_name }}
+          asset_name: rss2cloud-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}-musl
+          release_tag: ${{ github.ref_name }}
   releases-darwin:
     name: Release darwin Go Binary
     runs-on: macos-latest
@@ -59,13 +61,13 @@ jobs:
         run: |
           mkdir release-ready
           cd ./release-tmp
-          tar -zcvf ../release-ready/rss2cloud-${{ github.event.release.tag_name }}-darwin-arm64.tar.gz *
+          tar -zcvf ../release-ready/rss2cloud-${{ github.ref_name }}-darwin-arm64.tar.gz *
       - name: Upload Release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ./release-ready/rss2cloud-${{ github.event.release.tag_name }}-darwin-arm64.tar.gz
-          tag: ${{ github.event.release.tag_name }}
+          file: ./release-ready/rss2cloud-${{ github.ref_name }}-darwin-arm64.tar.gz
+          tag: ${{ github.ref_name }}
           overwrite: true
 
   releases-windows:
@@ -83,4 +85,4 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           goos: ${{ matrix.goos }}
           goarch: ${{ matrix.goarch }}
-          release_tag: ${{ github.event.release.tag_name }}
+          release_tag: ${{ github.ref_name }}
