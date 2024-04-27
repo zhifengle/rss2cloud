@@ -85,4 +85,5 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           goos: ${{ matrix.goos }}
           goarch: ${{ matrix.goarch }}
+          ldflags: '-s -w'
           release_tag: ${{ github.ref_name }}
