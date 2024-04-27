@@ -55,6 +55,28 @@ rss2cloud magnet --link "magnet:?xt=urn:btih:12345" --cid "12345"
 rss2cloud magnet --txt magnet.txt --cid "12345"
 ```
 
+### 服务模式
+
+```bash
+# 查看 server 子命令帮助
+rss2cloud server -h
+# 运行服务
+rss2cloud server
+# 添加任务
+curl -d '{"tasks": ["magnet:?xt=urn:btih:xx"], "cid":"12345"}' -X POST http://localhost:8115/add
+```
+
+POST `http://localhost:8115/add`
+
+body 示例：
+
+```json
+{
+  "tasks": ["magnet:?xt=urn:btih:xxx"],
+  "cid": "12345"
+}
+```
+
 ## 配置
 
 <details>
@@ -172,13 +194,16 @@ EXIT /b
 假设 rss2cloud 目录在 `$HOME` 下面
 
 新建一个 rss2cloud.sh 的文件
+
 ```bash
 #!/bin/bash
 cd "$(dirname "$0")"
 #export HTTPS_PROXY=http://youraddr:port
 $HOME/rss2cloud/rss2cloud >> $HOME/rss2cloud/logfile.log 2>&1
 ```
-配置定时任务  `10 8 * * * $HOME/rss2cloud/rss2cloud.sh`
 
-不使用shell脚本，定时任务这样写  `10 8 * * * cd $HOME/rss2cloud && ./rss2cloud`
+配置定时任务 `10 8 * * * $HOME/rss2cloud/rss2cloud.sh`
+
+不使用 shell 脚本，定时任务这样写 `10 8 * * * cd $HOME/rss2cloud && ./rss2cloud`
+
 </details>

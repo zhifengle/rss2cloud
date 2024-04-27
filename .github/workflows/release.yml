@@ -1,0 +1,86 @@
+name: Publish Release
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Create a Release
+        uses: elgohr/Github-Release-Action@v5
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          title: Release v${{ github.ref_name }}
+
+  releases-musl:
+    name: Release musl Go Binary
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux]
+        goarch: [amd64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: wangyoucao577/go-release-action@v1
+        with:
+          pre_command: 'export CGO_ENABLED=1'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          goos: ${{ matrix.goos }}
+          goarch: ${{ matrix.goarch }}
+          ldflags: '-s -w -extldflags -static'
+          asset_name: rss2cloud-${{ github.event.release.tag_name }}-${{ matrix.goos }}-${{ matrix.goarch }}-musl
+          release_tag: ${{ github.event.release.tag_name }}
+  releases-darwin:
+    name: Release darwin Go Binary
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+          check-latest: true
+      - name: Install dependencies
+        run: |
+          export CGO_ENABLED=1
+          mkdir -p ./release-tmp
+          go get .
+      - name: Build
+        run: go build -ldflags "-s -w" -o ./release-tmp/
+      - name: Generate tar
+        run: |
+          mkdir release-ready
+          cd ./release-tmp
+          tar -zcvf ../release-ready/rss2cloud-${{ github.event.release.tag_name }}-darwin-arm64.tar.gz *
+      - name: Upload Release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ./release-ready/rss2cloud-${{ github.event.release.tag_name }}-darwin-arm64.tar.gz
+          tag: ${{ github.event.release.tag_name }}
+          overwrite: true
+
+  releases-windows:
+    name: Release windows Go Binary
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [windows]
+        goarch: [amd64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: wangyoucao577/go-release-action@v1
+        with:
+          pre_command: 'apt-get update && apt-get install --no-install-recommends -y gcc-mingw-w64-x86-64 && export CGO_ENABLED=1 && export CC=x86_64-w64-mingw32-gcc'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          goos: ${{ matrix.goos }}
+          goarch: ${{ matrix.goarch }}
+          release_tag: ${{ github.event.release.tag_name }}

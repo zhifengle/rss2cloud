@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/zhifengle/rss2cloud/p115"
 	"github.com/zhifengle/rss2cloud/rsssite"
+	"github.com/zhifengle/rss2cloud/server"
 )
 
 var (
@@ -65,6 +66,17 @@ var (
 			pAgent.AddMagnetTask(magnets, cid)
 		},
 	}
+	// server subcommand
+	port int
+
+	serverCmd = &cobra.Command{
+		Use:   "server",
+		Short: `Start server`,
+		Run: func(_cmd *cobra.Command, _args []string) {
+			initAgent()
+			server.New(pAgent, port).StartServer()
+		},
+	}
 )
 
 func Execute() {
@@ -85,6 +97,9 @@ func init() {
 	rootCmd.Flags().BoolVar(&disableCache, "no-cache", false, "skip checking cache in db.sqlite")
 	rootCmd.Flags().IntVar(&clearTaskNum, "clear-task-type", 0, "clear offline task type: 1-6.\n 1: OfflineClearDone\n 2: OfflineClearAll\n 3: OfflineClearFailed\n 4: OfflineClearRunning\n 5: OfflineClearDoneAndDelete\n 6: OfflineClearAllAndDelete")
 	rootCmd.AddCommand(magnetCmd)
+	// server subcommand
+	serverCmd.Flags().IntVarP(&port, "port", "p", 8115, "server port")
+	rootCmd.AddCommand(serverCmd)
 }
 
 func initAgent() {
