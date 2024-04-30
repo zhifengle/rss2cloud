@@ -39,3 +39,7 @@ func (s *Store) HasItem(magnet string) bool {
 	s.DBInstance.QueryRow("SELECT count(*) AS num FROM rss_items WHERE magnet = ?", magnet).Scan(&count)
 	return count > 0
 }
+
+func (s *Store) Close() error {
+	return s.DBInstance.Close()
+}
