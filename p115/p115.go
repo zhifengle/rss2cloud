@@ -125,10 +125,10 @@ func (ag *Agent) addCloudTasks(magnetItems []rsssite.MagnetItem, config *rsssite
 		}
 	}
 	if emptyNum != 0 {
-		log.Printf("[warning] [%s] has %d empty task", config.Name, emptyNum)
+		log.Printf("[warning] [%s] has %d empty task\n", config.Name, emptyNum)
 	}
 	if len(filterdItems) == 0 {
-		log.Printf("[%s] has 0 task", config.Name)
+		log.Printf("[%s] has 0 task\n", config.Name)
 		return
 	}
 	for _, items := range chunkBy(filterdItems, 200) {

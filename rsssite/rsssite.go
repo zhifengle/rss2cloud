@@ -39,7 +39,7 @@ func getSite(url string) MagnetSite {
 	case "share.acgnx.se", "share.acgnx.net", "www.acgnx.se":
 		return &Acgnx{}
 	default:
-		log.Fatalln("unknown site: ", name)
+		log.Printf("[error] not support site: [%s]. rss URL: %s\n", name, url)
 		return nil
 	}
 }
@@ -47,18 +47,23 @@ func getSite(url string) MagnetSite {
 func GetFeed(url string) *gofeed.Feed {
 	res, err := request.Get(url, nil)
 	if err != nil {
+		log.Printf("[error] get rss from %s error: %s\n", url, err)
 		return nil
 	}
 	feed, err := gofeed.NewParser().ParseString(res)
 	if err != nil {
+		log.Printf("[error] parse rss error: %s\n", err)
 		return nil
 	}
 	return feed
 }
 
 func GetMagnetItemList(config *RssConfig) []MagnetItem {
-	feed := GetFeed(config.Url)
 	site := getSite(config.Url)
+	if site == nil {
+		return nil
+	}
+	feed := GetFeed(config.Url)
 	if feed == nil {
 		return nil
 	}
