@@ -19,11 +19,22 @@ func TestStore(t *testing.T) {
 			Description: "test",
 			Content:     "test",
 		},
+		{
+			Title:       "test",
+			Link:        "test",
+			Magnet:      "magnet:?xt=urn:btih:uniquehash&dn=test",
+			Description: "test",
+			Content:     "test",
+		},
 	})
 	if err != nil {
 		t.Errorf("Error: %v", err)
 	}
 	exists := s.HasItem("magnet:?xt=urn:btih:aa")
+	if !exists {
+		t.Errorf("Error: %v", err)
+	}
+	exists = s.HasMagnetByXt("magnet:?xt=urn:btih:uniquehash&dn=test2")
 	if !exists {
 		t.Errorf("Error: %v", err)
 	}

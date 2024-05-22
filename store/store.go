@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"net/url"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -37,6 +38,19 @@ func (s *Store) SaveMagnetItems(items []rsssite.MagnetItem) error {
 func (s *Store) HasItem(magnet string) bool {
 	var count int
 	s.DBInstance.QueryRow("SELECT count(*) AS num FROM rss_items WHERE magnet = ?", magnet).Scan(&count)
+	return count > 0
+}
+
+// @TODO 替换 HasItem. 注意目前 magnet 存的长度是 VARCHAR(255)。有tracker的长URI会存不了.
+func (s *Store) HasMagnetByXt(magnet string) bool {
+	var count int
+	u, err := url.Parse(magnet)
+	if err != nil {
+		return false
+	}
+	params := u.Query()
+	xt := params.Get("xt")
+	s.DBInstance.QueryRow("SELECT count(*) AS num FROM rss_items WHERE magnet LIKE ?", "%"+xt+"%").Scan(&count)
 	return count > 0
 }
 
