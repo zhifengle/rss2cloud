@@ -38,6 +38,8 @@ func getSite(url string) MagnetSite {
 		return &Dmhy{}
 	case "share.acgnx.se", "share.acgnx.net", "www.acgnx.se":
 		return &Acgnx{}
+	case "rsshub.app":
+		return &Rsshub{}
 	default:
 		log.Printf("[error] not support site: [%s]. rss URL: %s\n", name, url)
 		return nil
@@ -87,4 +89,21 @@ func GetMagnetItemList(config *RssConfig) []MagnetItem {
 		itemList = append(itemList, site.GetMagnetItem(item))
 	}
 	return itemList
+}
+
+func GetMagnetByEnclosure(item *gofeed.Item) string {
+	if item.Enclosures == nil || len(item.Enclosures) == 0 {
+		return ""
+	}
+	// find enclosure by type == "application/x-bittorrent" or url has prefix magnet:?
+	for _, enclosure := range item.Enclosures {
+		if enclosure.Type == "application/x-bittorrent" || strings.HasPrefix(enclosure.URL, "magnet:?") {
+			lst := strings.Split(item.Enclosures[0].URL, "&dn=")
+			if len(lst) != 2 {
+				return enclosure.URL
+			}
+			return lst[0]
+		}
+	}
+	return ""
 }
