@@ -30,6 +30,44 @@ func TestGet(t *testing.T) {
 	t.Log(res)
 }
 
+type CookiesResponse struct {
+	Cookies map[string]string `json:"cookies"`
+}
+
+func TestSetCookie(t *testing.T) {
+	url := "https://httpbin.org/cookies/set?foo=bar"
+	ReqSiteConfig["httpbin.org"] = SiteConfig{
+		HttpsAgent: "yes",
+	}
+	res, err := Get(url, nil)
+	if err != nil {
+		t.Error()
+	}
+	var result CookiesResponse
+	err = json.Unmarshal([]byte(res), &result)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+	if result.Cookies["foo"] != "bar" {
+		t.Errorf("Expected 'foo' to be 'bar', got %v", result.Cookies["foo"])
+	}
+	// Test setting the second cookie
+	url = "https://httpbin.org/cookies/set?baz=qux"
+	res, err = Get(url, nil)
+	if err != nil {
+		t.Fatalf("Failed to set cookie 'baz': %v", err)
+	}
+
+	result = CookiesResponse{}
+	err = json.Unmarshal([]byte(res), &result)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+	if result.Cookies["baz"] != "qux" || result.Cookies["foo"] != "bar" {
+		t.Errorf("Expected 'baz' to be 'qux' and 'foo' to be 'bar', got %v and %v", result.Cookies["baz"], result.Cookies["foo"])
+	}
+}
+
 func TestGetWithProxy(t *testing.T) {
 	url := "https://httpbin.org/ip"
 	ReqSiteConfig["httpbin.org"] = SiteConfig{
