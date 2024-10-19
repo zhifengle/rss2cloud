@@ -1,6 +1,8 @@
 module github.com/zhifengle/rss2cloud
 
-go 1.19
+go 1.23
+
+toolchain go1.23.2
 
 require github.com/spf13/cobra v1.8.0
 
@@ -17,7 +19,7 @@ require (
 )
 
 require (
-	github.com/deadblue/elevengo v0.6.5
+	github.com/deadblue/elevengo v0.7.1
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-sqlite3 v1.14.21
 	github.com/mmcdole/gofeed v1.2.1
