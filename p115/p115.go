@@ -136,7 +136,7 @@ func (ag *Agent) addCloudTasks(magnetItems []rsssite.MagnetItem, config *rsssite
 		for _, item := range items {
 			urls = append(urls, item.Magnet)
 		}
-		_, err := ag.Agent.OfflineAddUrl(urls, option.OfflineSaveDownloadedFileTo(config.Cid))
+		_, err := ag.Agent.OfflineAddUrl(urls, &option.OfflineAddOptions{SaveDirId: config.Cid})
 		if err != nil {
 			log.Printf("Add offline error: %s\n", err)
 			return
@@ -174,7 +174,7 @@ func (ag *Agent) ExecuteAllRssTask() {
 
 func (ag *Agent) AddMagnetTask(magnets []string, cid string) {
 	for _, urls := range chunkBy(magnets, 200) {
-		_, err := ag.Agent.OfflineAddUrl(urls, option.OfflineSaveDownloadedFileTo(cid))
+		_, err := ag.Agent.OfflineAddUrl(urls, &option.OfflineAddOptions{SaveDirId: cid})
 		if err != nil {
 			log.Printf("Add offline error: %s\n", err)
 			return
@@ -209,7 +209,8 @@ func LoadCookies() string {
 func QrcodeLogin() (*Agent, error) {
 	agent := elevengo.Default()
 	session := &elevengo.QrcodeSession{}
-	err := agent.QrcodeStart(session)
+	// @TODO: add option; default is tv
+	err := agent.QrcodeStart(session, option.Qrcode().LoginTv())
 	if err != nil {
 		return nil, err
 	}
