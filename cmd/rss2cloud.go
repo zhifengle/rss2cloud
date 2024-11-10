@@ -18,6 +18,8 @@ var (
 	rssJsonPath  string
 	qrLogin      bool
 	disableCache bool
+	chunkDelay   int
+	chunkSize    int
 	clearTaskNum int
 	rootCmd      = &cobra.Command{
 		Use:   "rss2cloud",
@@ -95,6 +97,8 @@ func init() {
 	magnetCmd.Flags().StringVar(&cid, "cid", "", "cid")
 	magnetCmd.Flags().StringVar(&textFile, "text", "", "text file")
 	rootCmd.Flags().BoolVar(&disableCache, "no-cache", false, "skip checking cache in db.sqlite")
+	rootCmd.Flags().IntVar(&chunkDelay, "chunk-delay", 0, "chunk delay. default 2")
+	rootCmd.Flags().IntVar(&chunkSize, "chunk-size", 0, "chunk size. default 200")
 	rootCmd.Flags().IntVar(&clearTaskNum, "clear-task-type", 0, "clear offline task type: 1-6.\n 1: OfflineClearDone\n 2: OfflineClearAll\n 3: OfflineClearFailed\n 4: OfflineClearRunning\n 5: OfflineClearDoneAndDelete\n 6: OfflineClearAllAndDelete")
 	rootCmd.AddCommand(magnetCmd)
 	// server subcommand
@@ -103,9 +107,7 @@ func init() {
 }
 
 func initAgent() {
-	if disableCache {
-		p115.SetOption(p115.Option{DisableCache: true})
-	}
+	p115.SetOption(p115.Option{DisableCache: disableCache, ChunkDelay: chunkDelay, ChunkSize: chunkSize})
 	var err error
 	if cookies != "" {
 		pAgent, err = p115.NewAgent(cookies)

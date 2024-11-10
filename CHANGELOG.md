@@ -1,5 +1,5 @@
-# v0.1.8
+# v0.1.10
 
-## 修复
+## 变动
 
-- 升级 elevengo
+- 新增 chunk-delay 和 chunk-size，减少连续请求速度
