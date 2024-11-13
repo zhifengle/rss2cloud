@@ -176,10 +176,12 @@ func (ag *Agent) ExecuteAllRssTask() {
 		return
 	}
 	for _, configs := range *rssDict {
-		for _, config := range configs {
+		for i, config := range configs {
 			magnetItems := rsssite.GetMagnetItemList(&config)
 			ag.addCloudTasks(magnetItems, &config)
-			time.Sleep(time.Second * time.Duration(chunkDelay))
+			if i != len(configs)-1 {
+				time.Sleep(time.Second * time.Duration(chunkDelay))
+			}
 		}
 	}
 }
