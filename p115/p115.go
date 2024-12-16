@@ -105,6 +105,7 @@ func NewAgent(cookies string) (*Agent, error) {
 	cookiesMap := parseCookies(cookies)
 	err := agent.CredentialImport(&elevengo.Credential{
 		UID: cookiesMap["UID"], CID: cookiesMap["CID"], SEID: cookiesMap["SEID"],
+		KID: cookiesMap["KID"],
 	})
 	if err != nil {
 		return nil, err
@@ -205,7 +206,7 @@ func (ag *Agent) OfflineClear(num int) (err error) {
 func SaveCookies(agent *elevengo.Agent) {
 	cr := &elevengo.Credential{}
 	agent.CredentialExport(cr)
-	cookies := fmt.Sprintf("UID=%s; CID=%s; SEID=%s", cr.UID, cr.CID, cr.SEID)
+	cookies := fmt.Sprintf("UID=%s; CID=%s; SEID=%s; KID=%s", cr.UID, cr.CID, cr.SEID, cr.KID)
 	os.WriteFile(".cookies", []byte(cookies), 0644)
 }
 

@@ -19,7 +19,7 @@ require (
 )
 
 require (
-	github.com/deadblue/elevengo v0.7.4
+	github.com/deadblue/elevengo v0.7.8
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-sqlite3 v1.14.21
 	github.com/mmcdole/gofeed v1.2.1
