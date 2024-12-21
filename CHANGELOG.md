@@ -1,5 +1,5 @@
-# v0.1.10
+# v0.1.11
 
 ## 变动
 
-- 新增 chunk-delay 和 chunk-size，减少连续请求速度
+- 修复kid
