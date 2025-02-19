@@ -1,5 +1,5 @@
-# v0.1.11
+# v0.1.12
 
 ## 变动
 
-- 修复kid
+- 使用dlclark/regexp2 替代 regexp

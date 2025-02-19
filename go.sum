@@ -21,6 +21,8 @@ github.com/deadblue/elevengo v0.7.4 h1:oVjnBLrmKQGdvoNeTw1oNhD3NBlT01v41dC6Ls460
 github.com/deadblue/elevengo v0.7.4/go.mod h1:rTKHkJuPwdRjRbDpfeARXxfvDHbPf7PLUvIfeTqQ9vE=
 github.com/deadblue/elevengo v0.7.8 h1:7bQDYSDBcGCllBdwfqpTL9gcOVvIS5778Yo4Xhz8hM0=
 github.com/deadblue/elevengo v0.7.8/go.mod h1:rTKHkJuPwdRjRbDpfeARXxfvDHbPf7PLUvIfeTqQ9vE=
+github.com/dlclark/regexp2 v1.11.5 h1:Q/sSnsKerHeCkc/jSTNq1oCm7KiVgUMZRDUoRu0JQZQ=
+github.com/dlclark/regexp2 v1.11.5/go.mod h1:DHkYz0B9wPfa6wondMfaivmHpzrQ3v9q8cnmRbL6yW8=
 github.com/google/gofuzz v1.0.0/go.mod h1:dBl0BpW6vV/+mYPU4Po3pmUjxk6FQPldtuIdl/M65Eg=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=

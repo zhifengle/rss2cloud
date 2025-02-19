@@ -3,8 +3,9 @@ package rsssite
 import (
 	"log"
 	urlPkg "net/url"
-	"regexp"
 	"strings"
+
+	"github.com/dlclark/regexp2"
 
 	"github.com/mmcdole/gofeed"
 	"github.com/zhifengle/rss2cloud/request"
@@ -70,15 +71,15 @@ func GetMagnetItemList(config *RssConfig) []MagnetItem {
 		return nil
 	}
 	var itemList []MagnetItem
-	var re *regexp.Regexp
+	var re *regexp2.Regexp
 	if strings.HasPrefix(config.Filter, "/") && strings.HasSuffix(config.Filter, "/") {
-		re = regexp.MustCompile(config.Filter[1 : len(config.Filter)-1])
+		re = regexp2.MustCompile(config.Filter[1:len(config.Filter)-1], 0)
 	}
 	for _, item := range feed.Items {
 		flag := true
 		if config.Filter != "" {
 			if re != nil {
-				flag = re.MatchString(item.Title)
+				flag, _ = re.MatchString(item.Title)
 			} else {
 				flag = strings.Contains(item.Title, config.Filter)
 			}
@@ -92,7 +93,7 @@ func GetMagnetItemList(config *RssConfig) []MagnetItem {
 }
 
 func GetMagnetByEnclosure(item *gofeed.Item) string {
-	if item.Enclosures == nil || len(item.Enclosures) == 0 {
+	if len(item.Enclosures) == 0 {
 		return ""
 	}
 	// find enclosure by type == "application/x-bittorrent" or url has prefix magnet:?
