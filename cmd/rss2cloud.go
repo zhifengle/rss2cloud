@@ -79,6 +79,15 @@ var (
 			server.New(pAgent, port).StartServer()
 		},
 	}
+	// prompts subcommand
+	promptsCmd = &cobra.Command{
+		Use:   "prompts",
+		Short: `start prompts`,
+		Run: func(_cmd *cobra.Command, _args []string) {
+			initAgent()
+			startPrompts()
+		},
+	}
 )
 
 func Execute() {
@@ -104,6 +113,7 @@ func init() {
 	// server subcommand
 	serverCmd.Flags().IntVarP(&port, "port", "p", 8115, "server port")
 	rootCmd.AddCommand(serverCmd)
+	rootCmd.AddCommand(promptsCmd)
 }
 
 func initAgent() {
