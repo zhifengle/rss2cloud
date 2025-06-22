@@ -1,16 +1,20 @@
 package p115
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/deadblue/elevengo"
 	"github.com/deadblue/elevengo/option"
+	"golang.org/x/time/rate"
 )
 
 const (
 	FileListLimit = 32
 )
+
+var limiter *rate.Limiter = rate.NewLimiter(rate.Limit(0.75), 1)
 
 // flatten files, copy from targetDir to newDir
 func (ag *Agent) MoveFlattenFiles(targetDirId string, parentDirId string, newDirName string) error {
@@ -20,7 +24,7 @@ func (ag *Agent) MoveFlattenFiles(targetDirId string, parentDirId string, newDir
 	var targetFile elevengo.File
 	if parentDirId == "" {
 		ag.Agent.FileGet(targetDirId, &targetFile)
-		time.Sleep(1 * time.Second)
+		limiter.Wait(context.Background())
 		parentDirId = targetFile.ParentId
 		if newDirName == "" {
 			newDirName = targetFile.Name + "_flatten"
@@ -31,14 +35,14 @@ func (ag *Agent) MoveFlattenFiles(targetDirId string, parentDirId string, newDir
 	if err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
-	time.Sleep(500 * time.Millisecond)
+	limiter.Wait(context.Background())
 
 	// Step 2: Iterate files in the target directory
 	it, err := ag.Agent.FileIterate(targetDirId)
 	if err != nil {
 		return fmt.Errorf("failed to iterate files: %w", err)
 	}
-	time.Sleep(500 * time.Millisecond)
+	limiter.Wait(context.Background())
 
 	var fileIds []string
 
@@ -48,7 +52,7 @@ func (ag *Agent) MoveFlattenFiles(targetDirId string, parentDirId string, newDir
 		}
 		if file.IsDirectory {
 			fi, err := ag.Agent.FileIterate(file.FileId)
-			time.Sleep(500 * time.Millisecond)
+			limiter.Wait(context.Background())
 			if err != nil {
 				// return fmt.Errorf("failed to iterate sub folder: %w", err)
 				// @TODO ignore error
@@ -61,7 +65,7 @@ func (ag *Agent) MoveFlattenFiles(targetDirId string, parentDirId string, newDir
 			fileIds = append(fileIds, file.FileId)
 		}
 		if i%FileListLimit == 0 {
-			time.Sleep(500 * time.Millisecond)
+			limiter.Wait(context.Background())
 		}
 	}
 
@@ -71,7 +75,7 @@ func (ag *Agent) MoveFlattenFiles(targetDirId string, parentDirId string, newDir
 		if err := ag.Agent.FileMove(newDirId, ids); err != nil {
 			return fmt.Errorf("failed to move files: %w", err)
 		}
-		time.Sleep(500 * time.Millisecond)
+		limiter.Wait(context.Background())
 		if i != len(fileIds)/40 {
 			time.Sleep(time.Second * time.Duration(chunkDelay))
 		}
@@ -91,7 +95,7 @@ func (ag *Agent) RemoveEmptyDir(dirId string) error {
 	if err != nil {
 		return fmt.Errorf("failed to iterate files: %w", err)
 	}
-	time.Sleep(500 * time.Millisecond)
+	limiter.Wait(context.Background())
 	var fileIds []string
 	for i, file := range it.Items() {
 		if file.IsDirectory {
@@ -99,7 +103,7 @@ func (ag *Agent) RemoveEmptyDir(dirId string) error {
 			if err != nil {
 				return fmt.Errorf("failed to iterate files: %w", err)
 			}
-			time.Sleep(500 * time.Millisecond)
+			limiter.Wait(context.Background())
 			if fi.Count() == 0 {
 				fileIds = append(fileIds, file.FileId)
 			}
@@ -109,7 +113,7 @@ func (ag *Agent) RemoveEmptyDir(dirId string) error {
 				return fmt.Errorf("failed to delete files: %w", err)
 			}
 			fileIds = nil
-			time.Sleep(500 * time.Millisecond)
+			limiter.Wait(context.Background())
 		}
 	}
 	// delete empty dir
@@ -117,7 +121,7 @@ func (ag *Agent) RemoveEmptyDir(dirId string) error {
 		if err := ag.Agent.FileDelete(ids); err != nil {
 			return fmt.Errorf("failed to delete files: %w", err)
 		}
-		time.Sleep(500 * time.Millisecond)
+		limiter.Wait(context.Background())
 	}
 
 	return nil
@@ -139,14 +143,14 @@ func (ag *Agent) SearchAndMoveFiles(targetDirId string, parentDirId string, keyw
 	if err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
-	time.Sleep(500 * time.Millisecond)
+	limiter.Wait(context.Background())
 
 	fileOpt := &option.FileListOptions{Type: fileType, ExtName: ""}
 	it, err := ag.Agent.FileSearch(targetDirId, keyword, fileOpt)
 	if err != nil {
 		return fmt.Errorf("failed to search files: %w", err)
 	}
-	time.Sleep(500 * time.Millisecond)
+	limiter.Wait(context.Background())
 
 	var fileIds []string
 	for i, file := range it.Items() {
@@ -154,7 +158,7 @@ func (ag *Agent) SearchAndMoveFiles(targetDirId string, parentDirId string, keyw
 			continue
 		}
 		if i%FileListLimit == 0 {
-			time.Sleep(500 * time.Millisecond)
+			limiter.Wait(context.Background())
 		}
 		fileIds = append(fileIds, file.FileId)
 	}
@@ -163,7 +167,7 @@ func (ag *Agent) SearchAndMoveFiles(targetDirId string, parentDirId string, keyw
 		if err := ag.Agent.FileMove(newDirId, ids); err != nil {
 			return fmt.Errorf("failed to move files: %w", err)
 		}
-		time.Sleep(500 * time.Millisecond)
+		limiter.Wait(context.Background())
 		if i != len(fileIds)/size {
 			time.Sleep(time.Second * time.Duration(chunkDelay))
 		}
