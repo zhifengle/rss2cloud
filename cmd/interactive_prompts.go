@@ -79,28 +79,20 @@ func execFileOperation(cmds []string) {
 	// }
 	if cmds[0] == "SearchAndMoveFiles" {
 		if len(cmds) < 4 {
-			fmt.Printf("usage:  SearchAndMoveFiles targetDirId keyword fileType\n\tSearchAndMoveFiles targetDirId parentDirId keyword fileType\n")
+			fmt.Printf("usage:  SearchAndMoveFiles targetDirId distDirId keyword fileType")
 			fmt.Println("\tfileType: 0 All, 1 Document, 2 Image, 3 Audio, 4 Video, 5 Archive, 6 Sofrwore")
 			return
 		}
+		fileType := 0
 		if len(cmds) == 4 {
-			t, err := strconv.Atoi(cmds[3])
-			if err != nil {
-				fmt.Println(red(err.Error()))
-				return
-			}
-			err = pAgent.SearchAndMoveFiles(cmds[1], cmds[1], cmds[2], t)
+			err := pAgent.SearchAndMoveFiles(cmds[1], cmds[2], cmds[3], fileType)
 			if err != nil {
 				fmt.Println(red(err.Error()))
 			}
 			return
 		}
-		t, err := strconv.Atoi(cmds[4])
-		if err != nil {
-			fmt.Println(red(err.Error()))
-			return
-		}
-		err = pAgent.SearchAndMoveFiles(cmds[1], cmds[2], cmds[3], t)
+		fileType, _ = strconv.Atoi(cmds[4])
+		err := pAgent.SearchAndMoveFiles(cmds[1], cmds[2], cmds[3], fileType)
 		if err != nil {
 			fmt.Println(red(err.Error()))
 		}

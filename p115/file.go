@@ -128,22 +128,10 @@ func (ag *Agent) RemoveEmptyDir(dirId string) error {
 }
 
 // search file in dir and move to new dir
-func (ag *Agent) SearchAndMoveFiles(targetDirId string, parentDirId string, keyword string, fileType int) error {
-	if targetDirId == "" {
-		return fmt.Errorf("targetDirId is empty")
+func (ag *Agent) SearchAndMoveFiles(targetDirId string, distDirId string, keyword string, fileType int) error {
+	if targetDirId == "" || distDirId == "" {
+		return fmt.Errorf("targetDirId or distDirId is empty")
 	}
-	var targetFile elevengo.File
-	newDirName := keyword + "_" + time.Now().Format("2006-01-01 15:00:00")
-	if parentDirId == "" {
-		ag.Agent.FileGet(targetDirId, &targetFile)
-		time.Sleep(1 * time.Second)
-		parentDirId = targetFile.ParentId
-	}
-	newDirId, err := ag.Agent.DirMake(parentDirId, newDirName)
-	if err != nil {
-		return fmt.Errorf("failed to create directory: %w", err)
-	}
-	limiter.Wait(context.Background())
 
 	fileOpt := &option.FileListOptions{Type: fileType, ExtName: ""}
 	it, err := ag.Agent.FileSearch(targetDirId, keyword, fileOpt)
@@ -164,7 +152,7 @@ func (ag *Agent) SearchAndMoveFiles(targetDirId string, parentDirId string, keyw
 	}
 	size := 40
 	for i, ids := range chunkBy(fileIds, size) {
-		if err := ag.Agent.FileMove(newDirId, ids); err != nil {
+		if err := ag.Agent.FileMove(distDirId, ids); err != nil {
 			return fmt.Errorf("failed to move files: %w", err)
 		}
 		limiter.Wait(context.Background())
