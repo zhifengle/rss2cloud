@@ -11,6 +11,7 @@ import (
 	urlPkg "net/url"
 	"os"
 	"path"
+	"sync"
 	"time"
 )
 
@@ -19,6 +20,7 @@ var (
 	httpProxy     = "http://127.0.0.1:10809"
 	ua            = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
 	clientMap     = make(map[string]*http.Client)
+	clientMapMu   sync.RWMutex
 )
 
 type SiteConfig struct {
@@ -46,33 +48,45 @@ func ReadNodeSiteConfig() NodeSiteConfig {
 
 func getClientByReq(req *http.Request) *http.Client {
 	host := req.URL.Host
-	if clientMap[host] == nil {
-		var p func(*http.Request) (*urlPkg.URL, error)
-		curConfig, ok := ReqSiteConfig[host]
-		if ok && curConfig.HttpsAgent != "" {
-			u, _ := http.ProxyFromEnvironment(req)
-			if u == nil {
-				proxy, _ := urlPkg.Parse(httpProxy)
-				p = http.ProxyURL(proxy)
-			} else {
-				p = http.ProxyFromEnvironment
-			}
-		}
-		transport := &http.Transport{
-			Proxy:               p,
-			DisableCompression:  true,
-			TLSHandshakeTimeout: 10 * time.Second,
-			// TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
-		}
-		jar, _ := cookiejar.New(nil)
-		client := &http.Client{
-			Transport: transport,
-			Timeout:   20 * time.Second,
-			Jar:       jar,
-		}
-		clientMap[host] = client
+	clientMapMu.RLock()
+	client := clientMap[host]
+	clientMapMu.RUnlock()
+	if client != nil {
+		return client
 	}
-	return clientMap[host]
+
+	clientMapMu.Lock()
+	defer clientMapMu.Unlock()
+
+	if clientMap[host] != nil {
+		return clientMap[host]
+	}
+
+	var p func(*http.Request) (*urlPkg.URL, error)
+	curConfig, ok := ReqSiteConfig[host]
+	if ok && curConfig.HttpsAgent != "" {
+		u, _ := http.ProxyFromEnvironment(req)
+		if u == nil {
+			proxy, _ := urlPkg.Parse(httpProxy)
+			p = http.ProxyURL(proxy)
+		} else {
+			p = http.ProxyFromEnvironment
+		}
+	}
+	transport := &http.Transport{
+		Proxy:               p,
+		DisableCompression:  true,
+		TLSHandshakeTimeout: 10 * time.Second,
+		// TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
+	}
+	jar, _ := cookiejar.New(nil)
+	client = &http.Client{
+		Transport: transport,
+		Timeout:   20 * time.Second,
+		Jar:       jar,
+	}
+	clientMap[host] = client
+	return client
 }
 
 func Request(method, url string, body io.Reader, headers map[string]string) (*http.Response, error) {
