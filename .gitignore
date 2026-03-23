@@ -1,6 +1,9 @@
 /target
 /.idea
 /.vscode
+!/.vscode/
+/.vscode/*
+!/.vscode/settings.json
 t.txt
 db.sqlite
 .cookies

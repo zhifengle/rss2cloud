@@ -1,0 +1,9 @@
+{
+    "go.buildFlags": [
+        "-gcflags=all=-N -l"
+    ],
+    "go.testFlags": [
+        "-gcflags=all=-N -l",
+        "-v"
+    ]
+}
