@@ -238,8 +238,7 @@ func QrcodeLogin() (*Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	now := time.Now()
-	after := now.Add(2 * time.Minute)
+	after := time.Now().Add(2 * time.Minute)
 	for {
 		time.Sleep(200 * time.Millisecond)
 		success, err := agent.QrcodePoll(session)
@@ -255,7 +254,7 @@ func QrcodeLogin() (*Agent, error) {
 		if err != nil && err == elevengo.ErrQrcodeCancelled {
 			return nil, errors.New("login cancelled")
 		}
-		if now.After(after) {
+		if time.Now().After(after) {
 			return nil, errors.New("login timed out")
 		}
 	}
