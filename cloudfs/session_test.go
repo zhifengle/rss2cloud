@@ -3,6 +3,7 @@ package cloudfs
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -21,13 +22,14 @@ func newFakeDriver() *fakeDriver {
 			"2": {ID: "2", ParentID: "0", Name: "notes.txt", Type: EntryTypeFile},
 			"3": {ID: "3", ParentID: "1", Name: "sub", Type: EntryTypeDirectory},
 			"4": {ID: "4", ParentID: "1", Name: "episode.mkv", Type: EntryTypeFile},
+			"5": {ID: "5", ParentID: "3", Name: "episode-02.mkv", Type: EntryTypeFile},
 		},
 		children: map[string][]string{
 			"0": {"1", "2"},
 			"1": {"3", "4"},
-			"3": {},
+			"3": {"5"},
 		},
-		nextID: 5,
+		nextID: 6,
 	}
 }
 
@@ -131,6 +133,28 @@ func (d *fakeDriver) Delete(_ context.Context, entryID string) error {
 	return nil
 }
 
+func (d *fakeDriver) Search(_ context.Context, dirID, keyword string, opts SearchOptions) ([]Entry, error) {
+	var results []Entry
+	var visit func(string)
+	visit = func(currentID string) {
+		for _, childID := range d.children[currentID] {
+			entry := d.entries[childID]
+			if entry.IsDir() {
+				if opts.IncludeDirectories && contains(entry.Name, keyword) {
+					results = append(results, entry)
+				}
+				visit(childID)
+				continue
+			}
+			if contains(entry.Name, keyword) {
+				results = append(results, entry)
+			}
+		}
+	}
+	visit(dirID)
+	return results, nil
+}
+
 func removeID(ids []string, id string) []string {
 	out := ids[:0]
 	for _, v := range ids {
@@ -139,6 +163,10 @@ func removeID(ids []string, id string) []string {
 		}
 	}
 	return out
+}
+
+func contains(name, keyword string) bool {
+	return keyword == "" || (keyword != "" && strings.Contains(name, keyword))
 }
 
 // --- Tests ---
@@ -328,6 +356,83 @@ func TestCpTargetNotDirectory(t *testing.T) {
 	err := s.Cp(ctx, "/notes.txt", "/anime/episode.mkv")
 	if !errors.Is(err, ErrNotDirectory) {
 		t.Fatalf("expected ErrNotDirectory, got %v", err)
+	}
+}
+
+func TestSearchReturnsRecursiveFileMatches(t *testing.T) {
+	ctx := context.Background()
+	s, _ := NewSession(ctx, newFakeDriver())
+
+	results, err := s.Search(ctx, "/anime", "episode", SearchOptions{})
+	if err != nil {
+		t.Fatalf("Search failed: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %+v", results)
+	}
+	if results[0].IsDir() || results[1].IsDir() {
+		t.Fatalf("expected file-only results, got %+v", results)
+	}
+}
+
+func TestSearchMoveMovesMatchesIntoTargetDir(t *testing.T) {
+	ctx := context.Background()
+	s, _ := NewSession(ctx, newFakeDriver())
+
+	results, err := s.SearchMove(ctx, "/anime", "episode", "/", SearchOptions{})
+	if err != nil {
+		t.Fatalf("SearchMove failed: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 moved entries, got %+v", results)
+	}
+	for _, entry := range results {
+		if entry.ParentID != "0" {
+			t.Fatalf("expected moved entry under root, got %+v", entry)
+		}
+	}
+}
+
+func TestSearchMoveRejectsDuplicateTargetNames(t *testing.T) {
+	ctx := context.Background()
+	d := newFakeDriver()
+	d.entries["6"] = Entry{ID: "6", ParentID: "0", Name: "episode.mkv", Type: EntryTypeFile}
+	d.children["0"] = append(d.children["0"], "6")
+
+	s, _ := NewSession(ctx, d)
+	results, err := s.SearchMove(ctx, "/anime", "episode", "/", SearchOptions{})
+	if !errors.Is(err, ErrAlreadyExists) {
+		t.Fatalf("expected ErrAlreadyExists, got %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("expected no moved results on conflict, got %+v", results)
+	}
+	entry, statErr := s.Stat(ctx, "/anime/episode.mkv")
+	if statErr != nil || entry.ParentID != "1" {
+		t.Fatalf("expected original file to stay put, got entry=%+v err=%v", entry, statErr)
+	}
+}
+
+func TestFlattenRequiresDirectory(t *testing.T) {
+	ctx := context.Background()
+	s, _ := NewSession(ctx, newFakeDriver())
+
+	_, err := s.Flatten(ctx, "/notes.txt", FlattenOptions{})
+	if !errors.Is(err, ErrNotDirectory) {
+		t.Fatalf("expected ErrNotDirectory, got %v", err)
+	}
+}
+
+func TestFlattenSkeletonReturnsUnsupported(t *testing.T) {
+	ctx := context.Background()
+	s, _ := NewSession(ctx, newFakeDriver())
+
+	result, err := s.Flatten(ctx, "/anime", FlattenOptions{})
+	if !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("expected ErrUnsupported, got %v", err)
+	}
+	if result.Target.ID != "1" {
+		t.Fatalf("expected resolved target to be anime, got %+v", result.Target)
 	}
 }
 

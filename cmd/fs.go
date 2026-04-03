@@ -42,6 +42,8 @@ func init() {
 	fsCmd.AddCommand(fsMvCmd)
 	fsCmd.AddCommand(fsRmCmd)
 	fsCmd.AddCommand(fsCpCmd)
+	fsCmd.AddCommand(fsFlattenCmd)
+	fsCmd.AddCommand(fsSearchMvCmd)
 
 	rootCmd.AddCommand(fsCmd)
 }

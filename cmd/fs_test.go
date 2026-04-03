@@ -22,12 +22,13 @@ func newCmdFakeDriver() *cmdFakeDriver {
 			"0": {ID: "0", Name: "/", Type: cloudfs.EntryTypeDirectory},
 			"1": {ID: "1", ParentID: "0", Name: "anime", Type: cloudfs.EntryTypeDirectory},
 			"2": {ID: "2", ParentID: "0", Name: "notes.txt", Type: cloudfs.EntryTypeFile, Size: 42},
+			"3": {ID: "3", ParentID: "1", Name: "episode.mkv", Type: cloudfs.EntryTypeFile, Size: 100},
 		},
 		children: map[string][]string{
 			"0": {"1", "2"},
-			"1": {},
+			"1": {"3"},
 		},
-		nextID: 3,
+		nextID: 4,
 	}
 }
 
@@ -106,6 +107,28 @@ func (d *cmdFakeDriver) Delete(_ context.Context, entryID string) error {
 	return nil
 }
 
+func (d *cmdFakeDriver) Search(_ context.Context, dirID, keyword string, opts cloudfs.SearchOptions) ([]cloudfs.Entry, error) {
+	var results []cloudfs.Entry
+	var visit func(string)
+	visit = func(currentID string) {
+		for _, childID := range d.children[currentID] {
+			entry := d.entries[childID]
+			if entry.IsDir() {
+				if opts.IncludeDirectories && strings.Contains(entry.Name, keyword) {
+					results = append(results, entry)
+				}
+				visit(childID)
+				continue
+			}
+			if strings.Contains(entry.Name, keyword) {
+				results = append(results, entry)
+			}
+		}
+	}
+	visit(dirID)
+	return results, nil
+}
+
 func removeCmdID(ids []string, id string) []string {
 	out := ids[:0]
 	for _, v := range ids {
@@ -136,6 +159,21 @@ func TestMvRequiresAtLeastTwoArgs(t *testing.T) {
 func TestCpRequiresAtLeastTwoArgs(t *testing.T) {
 	if err := fsCpCmd.Args(fsCpCmd, []string{"only-one"}); err == nil {
 		t.Fatal("expected error for single arg to cp")
+	}
+}
+
+func TestSearchMvRequiresExactlyThreeArgs(t *testing.T) {
+	if err := fsSearchMvCmd.Args(fsSearchMvCmd, []string{"one", "two"}); err == nil {
+		t.Fatal("expected error for two args to search-mv")
+	}
+}
+
+func TestFlattenRequiresExactlyOneArg(t *testing.T) {
+	if err := fsFlattenCmd.Args(fsFlattenCmd, []string{}); err == nil {
+		t.Fatal("expected error for zero args to flatten")
+	}
+	if err := fsFlattenCmd.Args(fsFlattenCmd, []string{"a", "b"}); err == nil {
+		t.Fatal("expected error for two args to flatten")
 	}
 }
 
@@ -216,6 +254,19 @@ func TestMvTargetMustBeDirectory(t *testing.T) {
 	_, err := s.Mv(ctx, "/notes.txt", "/anime")
 	if err == nil {
 		t.Fatal("expected error when target is not a directory")
+	}
+}
+
+func TestSearchMoveMovesMatches(t *testing.T) {
+	ctx := context.Background()
+	s := newTestSession(t)
+
+	results, err := s.SearchMove(ctx, "/anime", "episode", "/", cloudfs.SearchOptions{})
+	if err != nil {
+		t.Fatalf("SearchMove failed: %v", err)
+	}
+	if len(results) != 1 || results[0].ID != "3" {
+		t.Fatalf("unexpected SearchMove results: %+v", results)
 	}
 }
 

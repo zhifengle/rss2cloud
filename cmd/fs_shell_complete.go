@@ -9,7 +9,7 @@ import (
 
 // shellCommands is the fixed set of commands the shell understands.
 var shellCommands = []string{
-	"pwd", "ls", "cd", "stat", "mkdir", "rename", "mv", "cp", "rm",
+	"pwd", "ls", "cd", "stat", "mkdir", "rename", "mv", "cp", "flatten", "search-mv", "rm",
 	"history", "help", "exit", "quit",
 }
 

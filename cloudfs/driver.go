@@ -22,6 +22,12 @@ func (e Entry) IsDir() bool {
 	return e.Type == EntryTypeDirectory
 }
 
+type SearchOptions struct {
+	FileType           int
+	ExtName            string
+	IncludeDirectories bool
+}
+
 type Reader interface {
 	Provider() string
 	Root(ctx context.Context) (Entry, error)
@@ -48,6 +54,10 @@ type Copier interface {
 
 type Remover interface {
 	Delete(ctx context.Context, entryID string) error
+}
+
+type Searcher interface {
+	Search(ctx context.Context, dirID, keyword string, opts SearchOptions) ([]Entry, error)
 }
 
 // Driver is the aggregate facade combining all capability interfaces.

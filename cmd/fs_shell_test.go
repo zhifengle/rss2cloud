@@ -134,6 +134,20 @@ func TestShellCpOutput(t *testing.T) {
 	}
 }
 
+func TestShellSearchMvOutput(t *testing.T) {
+	out := runShellCmd(t, "search-mv /anime episode /")
+	if !strings.Contains(out, "moved") {
+		t.Fatalf("expected 'moved' in search-mv output, got %q", out)
+	}
+}
+
+func TestShellFlattenShowsUnsupported(t *testing.T) {
+	out := runShellCmd(t, "flatten /anime")
+	if !strings.Contains(out, "unsupported") {
+		t.Fatalf("expected unsupported error in flatten output, got %q", out)
+	}
+}
+
 func TestShellRm(t *testing.T) {
 	ctx := context.Background()
 	session := newTestSession(t)

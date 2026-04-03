@@ -26,6 +26,9 @@ const shellHelp = `Available commands:
   rename <path> <new-name>   rename object
   mv <src...> <target-dir>   move objects
   cp <src...> <target-dir>   copy objects
+  flatten <dir>              flatten descendant files into dir
+  search-mv <root> <keyword> <target-dir>
+                             search files and move matches
   rm <path...>               delete objects
   history                    show command history
   !N                         re-run history entry N
@@ -374,6 +377,40 @@ func dispatchShellCommand(ctx context.Context, session *cloudfs.Session, history
 			break
 		}
 		fmt.Fprintf(out, "copied %d object(s) to %s\n", len(sources), targetDir)
+
+	case "flatten":
+		if len(args) != 1 {
+			fmt.Fprintln(out, "usage: flatten <dir>")
+			break
+		}
+		result, err := session.Flatten(ctx, args[0], cloudfs.FlattenOptions{})
+		if err != nil {
+			shellError(out, err)
+			break
+		}
+		fmt.Fprintf(
+			out,
+			"flattened %s: moved %d file(s), removed %d directory(s)\n",
+			args[0], len(result.Moved), len(result.RemovedDirs),
+		)
+
+	case "search-mv":
+		if len(args) != 3 {
+			fmt.Fprintln(out, "usage: search-mv <root> <keyword> <target-dir>")
+			break
+		}
+		entries, err := session.SearchMove(ctx, args[0], args[1], args[2], cloudfs.SearchOptions{})
+		if err != nil {
+			shellError(out, err)
+			break
+		}
+		if len(entries) == 0 {
+			fmt.Fprintf(out, "moved 0 matched file(s) to %s\n", args[2])
+			break
+		}
+		for _, e := range entries {
+			fmt.Fprintf(out, "moved: %s\n", e.Name)
+		}
 
 	case "rm":
 		if len(args) == 0 {

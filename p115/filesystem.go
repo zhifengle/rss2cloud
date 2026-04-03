@@ -3,10 +3,12 @@ package p115
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/deadblue/elevengo"
 	llErrors "github.com/deadblue/elevengo/lowlevel/errors"
+	"github.com/deadblue/elevengo/option"
 	"github.com/zhifengle/rss2cloud/cloudfs"
 )
 
@@ -171,6 +173,55 @@ func (fs *FileSystem) Delete(_ context.Context, entryID string) error {
 		return mapError(err)
 	}
 	return nil
+}
+
+func (fs *FileSystem) Search(_ context.Context, dirID, keyword string, opts cloudfs.SearchOptions) ([]cloudfs.Entry, error) {
+	var listOpt *option.FileListOptions
+	switch {
+	case opts.ExtName != "":
+		listOpt = option.FileList().OnlyExtension(strings.TrimPrefix(opts.ExtName, "."))
+	case opts.FileType > 0:
+		listOpt = option.FileList()
+		switch opts.FileType {
+		case 1:
+			listOpt.OnlyDocument()
+		case 2:
+			listOpt.OnlyImage()
+		case 3:
+			listOpt.OnlyAudio()
+		case 4:
+			listOpt.OnlyVideo()
+		case 5:
+			listOpt.OnlyArchive()
+		case 6:
+			listOpt.OnlySoftware()
+		default:
+			listOpt.ShowAll()
+		}
+	}
+
+	var (
+		it  elevengo.Iterator[elevengo.File]
+		err error
+	)
+	if listOpt != nil {
+		it, err = fs.agent.FileSearch(dirID, keyword, listOpt)
+	} else {
+		it, err = fs.agent.FileSearch(dirID, keyword)
+	}
+	if err != nil {
+		return nil, mapError(err)
+	}
+
+	items := make([]cloudfs.Entry, 0, it.Count())
+	for _, file := range it.Items() {
+		entry := entryFromFile(file)
+		if entry.IsDir() && !opts.IncludeDirectories {
+			continue
+		}
+		items = append(items, entry)
+	}
+	return items, nil
 }
 
 // mapError normalises 115 SDK errors to cloudfs sentinel errors.
