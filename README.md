@@ -55,6 +55,82 @@ rss2cloud magnet --link "magnet:?xt=urn:btih:12345" --cid "12345"
 rss2cloud magnet --txt magnet.txt --cid "12345"
 ```
 
+### 文件管理命令
+
+`rss2cloud fs` 提供 115 网盘文件管理命令，可用于搜索整理和目录扁平化。
+
+```bash
+# 查看 fs 子命令帮助
+rss2cloud fs -h
+
+# 搜索 /anime 下名称包含 episode 的文件，并移动到 /anime/inbox
+rss2cloud fs search-mv /anime episode /anime/inbox
+
+# 只移动匹配关键字的 mkv 视频文件
+rss2cloud fs search-mv /anime episode /archive --type 4 --ext mkv
+
+# 将 /video_folder 的后代文件提升到目录本身
+rss2cloud fs flatten /video_folder
+
+# 只查看 flatten 计划，不执行实际移动
+rss2cloud fs flatten /video_folder --dry-run
+```
+
+### fs shell
+
+`rss2cloud fs shell` 提供一个交互式文件管理会话，适合连续执行 `ls`、`cd`、`mv`、`search-mv`、`flatten` 这类操作。
+
+```bash
+# 启动交互式 shell
+rss2cloud fs shell
+
+# 调整目录缓存时间
+rss2cloud fs --list-cache-ttl 5s shell
+
+# 关闭目录缓存
+rss2cloud fs --list-cache-ttl 0 shell
+```
+
+进入 shell 后可用的常见命令：
+
+```text
+pwd
+ls
+cd /anime
+stat episode.mkv
+mkdir inbox
+mv episode.mkv inbox
+search-mv /anime episode /archive
+flatten /video_folder
+rm /anime/old-file.txt
+refresh
+exit
+```
+
+交互示例：
+
+```text
+$ rss2cloud fs shell
+115:/>
+ls
+d  123456789012  anime
+d  223456789012  archive
+cd /anime
+search-mv /anime episode /archive
+moved: episode-01.mkv
+moved: episode-02.mkv
+flatten /anime/season1
+flattened /anime/season1: moved 12 file(s), removed 3 directory(s)
+exit
+```
+
+说明：
+
+- shell 需要在交互式终端中运行。
+- 支持历史记录、命令行编辑和路径自动补全。
+- `search_mv` 也可以作为 `search-mv` 的别名使用。
+- `refresh` 会清空当前会话缓存，适合在外部有变更后手动刷新。
+
 ### 服务模式
 
 ```bash
