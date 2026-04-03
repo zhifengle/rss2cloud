@@ -3,27 +3,68 @@ package p115
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/deadblue/elevengo"
 	llErrors "github.com/deadblue/elevengo/lowlevel/errors"
 	"github.com/zhifengle/rss2cloud/cloudfs"
 )
 
-const rootDirID = "0"
+// FileSystemOption holds provider-level configuration for FileSystem.
+type FileSystemOption struct {
+	// RootID overrides the logical root directory (default "0").
+	RootID string
+	// PageSize is a hint for list page size.
+	// Note: elevengo does not expose per-call page size control; this field is
+	// reserved for future use or a lower-level workaround.
+	PageSize int
+	// OperationLimiter is an optional rate limiter applied at the operation layer.
+	OperationLimiter cloudfs.Limiter
+}
+
+const defaultRootID = "0"
 
 type FileSystem struct {
-	agent *elevengo.Agent
+	agent    *elevengo.Agent
+	rootID   string
+	pageSize int
+	limiter  cloudfs.Limiter
 }
 
+// NewFileSystem creates a FileSystem with default options.
 func NewFileSystem(agent *elevengo.Agent) *FileSystem {
-	return &FileSystem{agent: agent}
+	return NewFileSystemWithOption(agent, FileSystemOption{})
 }
 
+// NewFileSystemWithOption creates a FileSystem with the given options.
+func NewFileSystemWithOption(agent *elevengo.Agent, opt FileSystemOption) *FileSystem {
+	rootID := opt.RootID
+	if rootID == "" {
+		rootID = defaultRootID
+	}
+	return &FileSystem{
+		agent:    agent,
+		rootID:   rootID,
+		pageSize: opt.PageSize,
+		limiter:  opt.OperationLimiter,
+	}
+}
+
+// FileSystem returns a cloudfs.Driver for this agent using default options.
 func (ag *Agent) FileSystem() cloudfs.Driver {
+	return ag.FileSystemWithOption(FileSystemOption{})
+}
+
+// FileSystemWithOption returns a cloudfs.Driver configured with the given options.
+func (ag *Agent) FileSystemWithOption(opt FileSystemOption) cloudfs.Driver {
 	if ag == nil || ag.Agent == nil {
 		return nil
 	}
-	return NewFileSystem(ag.Agent)
+	fs := NewFileSystemWithOption(ag.Agent, opt)
+	if fs.limiter != nil {
+		return cloudfs.NewRateLimitedDriver(fs, fs.limiter)
+	}
+	return fs
 }
 
 func (fs *FileSystem) Provider() string {
@@ -32,14 +73,14 @@ func (fs *FileSystem) Provider() string {
 
 func (fs *FileSystem) Root(_ context.Context) (cloudfs.Entry, error) {
 	return cloudfs.Entry{
-		ID:   rootDirID,
+		ID:   fs.rootID,
 		Name: "/",
 		Type: cloudfs.EntryTypeDirectory,
 	}, nil
 }
 
 func (fs *FileSystem) Stat(ctx context.Context, entryID string) (cloudfs.Entry, error) {
-	if entryID == "" || entryID == rootDirID {
+	if entryID == "" || entryID == fs.rootID {
 		return fs.Root(ctx)
 	}
 	file := &elevengo.File{}
@@ -51,12 +92,13 @@ func (fs *FileSystem) Stat(ctx context.Context, entryID string) (cloudfs.Entry, 
 
 func (fs *FileSystem) List(ctx context.Context, dirID string) ([]cloudfs.Entry, error) {
 	if dirID == "" {
-		dirID = rootDirID
+		dirID = fs.rootID
 	}
 	it, err := fs.agent.FileIterate(dirID)
 	if err != nil {
 		return nil, mapError(err)
 	}
+	// pageSize is reserved; elevengo does not expose per-call limit control.
 	items := make([]cloudfs.Entry, 0, it.Count())
 	for _, file := range it.Items() {
 		items = append(items, entryFromFile(file))
@@ -88,7 +130,7 @@ func (fs *FileSystem) Lookup(ctx context.Context, parentID, name string) (cloudf
 
 func (fs *FileSystem) Mkdir(ctx context.Context, parentID, name string) (cloudfs.Entry, error) {
 	if parentID == "" {
-		parentID = rootDirID
+		parentID = fs.rootID
 	}
 	dirID, err := fs.agent.DirMake(parentID, name)
 	if err != nil {
@@ -106,7 +148,7 @@ func (fs *FileSystem) Rename(ctx context.Context, entryID, newName string) (clou
 
 func (fs *FileSystem) Move(ctx context.Context, targetDirID, entryID string) (cloudfs.Entry, error) {
 	if targetDirID == "" {
-		targetDirID = rootDirID
+		targetDirID = fs.rootID
 	}
 	if err := fs.agent.FileMove(targetDirID, []string{entryID}); err != nil {
 		return cloudfs.Entry{}, mapError(err)
@@ -116,7 +158,7 @@ func (fs *FileSystem) Move(ctx context.Context, targetDirID, entryID string) (cl
 
 func (fs *FileSystem) Copy(_ context.Context, targetDirID, entryID string) error {
 	if targetDirID == "" {
-		targetDirID = rootDirID
+		targetDirID = fs.rootID
 	}
 	if err := fs.agent.FileCopy(targetDirID, []string{entryID}); err != nil {
 		return mapError(err)
@@ -136,19 +178,16 @@ func mapError(err error) error {
 	if err == nil {
 		return nil
 	}
-	// Match elevengo sentinel errors first.
 	switch {
 	case errors.Is(err, llErrors.ErrNotExist):
 		return cloudfs.ErrNotFound
 	case errors.Is(err, llErrors.ErrExist):
 		return cloudfs.ErrAlreadyExists
 	case errors.Is(err, llErrors.ErrInvalidOperation):
-		// 115 returns this for operations on wrong target types (e.g. non-dir).
 		return cloudfs.ErrNotDirectory
 	case errors.Is(err, llErrors.ErrInvalidParameters):
 		return cloudfs.ErrInvalidName
 	}
-	// Fall back to ApiError code inspection.
 	var apiErr *llErrors.ApiError
 	if errors.As(err, &apiErr) {
 		switch apiErr.Code {
@@ -176,4 +215,15 @@ func entryFromFile(file *elevengo.File) cloudfs.Entry {
 		Size:     file.Size,
 		PickCode: file.PickCode,
 	}
+}
+
+// NewOperationLimiter builds a CooldownLimiter from millisecond bounds.
+// Returns nil if both values are zero (no limiting).
+func NewOperationLimiter(minMs, maxMs int) cloudfs.Limiter {
+	if minMs <= 0 && maxMs <= 0 {
+		return nil
+	}
+	min := time.Duration(minMs) * time.Millisecond
+	max := time.Duration(maxMs) * time.Millisecond
+	return cloudfs.NewCooldownLimiter(min, max)
 }

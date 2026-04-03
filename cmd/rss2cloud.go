@@ -91,18 +91,18 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.Flags().StringVarP(&rssUrl, "url", "u", "", "rss url")
-	rootCmd.Flags().StringVar(&cookies, "cookies", "", "115 cookies")
-	rootCmd.Flags().StringVarP(&rssJsonPath, "rss", "r", "", "rss json path")
-	rootCmd.Flags().BoolVarP(&qrLogin, "qrcode", "q", false, "login 115 by qrcode")
+	rootCmd.PersistentFlags().StringVarP(&rssUrl, "url", "u", "", "rss url")
+	rootCmd.PersistentFlags().StringVar(&cookies, "cookies", "", "115 cookies")
+	rootCmd.PersistentFlags().StringVarP(&rssJsonPath, "rss", "r", "", "rss json path")
+	rootCmd.PersistentFlags().BoolVarP(&qrLogin, "qrcode", "q", false, "login 115 by qrcode")
 	magnetCmd.Flags().StringVarP(&linkUrl, "link", "l", "", "magnet link")
 	magnetCmd.Flags().StringVar(&cid, "cid", "", "cid")
 	magnetCmd.Flags().StringVar(&textFile, "text", "", "text file")
-	rootCmd.Flags().BoolVar(&disableCache, "no-cache", false, "skip checking cache in db.sqlite")
-	rootCmd.Flags().IntVar(&chunkDelay, "chunk-delay", 0, "chunk delay. default 2")
-	rootCmd.Flags().IntVar(&chunkSize, "chunk-size", 0, "chunk size. default 200")
-	rootCmd.Flags().IntVar(&cooldownMinMs, "cooldown-min-ms", 0, "minimum cooldown between 115 API calls in milliseconds")
-	rootCmd.Flags().IntVar(&cooldownMaxMs, "cooldown-max-ms", 0, "maximum cooldown between 115 API calls in milliseconds")
+	rootCmd.PersistentFlags().BoolVar(&disableCache, "no-cache", false, "skip checking cache in db.sqlite")
+	rootCmd.PersistentFlags().IntVar(&chunkDelay, "chunk-delay", 0, "chunk delay. default 2")
+	rootCmd.PersistentFlags().IntVar(&chunkSize, "chunk-size", 0, "chunk size. default 200")
+	rootCmd.PersistentFlags().IntVar(&cooldownMinMs, "cooldown-min-ms", 0, "minimum cooldown between 115 API calls in milliseconds")
+	rootCmd.PersistentFlags().IntVar(&cooldownMaxMs, "cooldown-max-ms", 0, "maximum cooldown between 115 API calls in milliseconds")
 	rootCmd.Flags().IntVar(&clearTaskNum, "clear-task-type", 0, "clear offline task type: 1-6.\n 1: OfflineClearDone\n 2: OfflineClearAll\n 3: OfflineClearFailed\n 4: OfflineClearRunning\n 5: OfflineClearDoneAndDelete\n 6: OfflineClearAllAndDelete")
 	rootCmd.AddCommand(magnetCmd)
 	// server subcommand

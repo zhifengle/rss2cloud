@@ -105,12 +105,12 @@ func TestMapError_Unknown(t *testing.T) {
 // --- Root ---
 
 func TestFileSystem_Root(t *testing.T) {
-	fs := &FileSystem{agent: &elevengo.Agent{}}
+	fs := NewFileSystem(&elevengo.Agent{})
 	e, err := fs.Root(nil)
 	if err != nil {
 		t.Fatalf("Root() error: %v", err)
 	}
-	if e.ID != rootDirID || e.Type != cloudfs.EntryTypeDirectory || e.Name != "/" {
+	if e.ID != defaultRootID || e.Type != cloudfs.EntryTypeDirectory || e.Name != "/" {
 		t.Fatalf("unexpected root entry: %+v", e)
 	}
 }
