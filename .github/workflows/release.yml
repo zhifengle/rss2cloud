@@ -4,27 +4,30 @@ on:
     tags:
       - 'v*'
 
+env:
+  IS_PRERELEASE: ${{ contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') || contains(github.ref_name, '-test') }}
+
 permissions:
   contents: write
   packages: write
 
 jobs:
-  build:
+  create-release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create or Update Release
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
           body_path: ./CHANGELOG.md
+          prerelease: ${{ env.IS_PRERELEASE }}
 
   releases-musl:
     name: Release musl Go Binary
     runs-on: ubuntu-latest
+    needs: create-release
     strategy:
       matrix:
         goos: [linux]
@@ -43,6 +46,7 @@ jobs:
   releases-darwin:
     name: Release darwin Go Binary
     runs-on: macos-latest
+    needs: create-release
     steps:
       - uses: actions/checkout@v4
       - name: Setup Go
@@ -68,11 +72,13 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: ./release-ready/rss2cloud-${{ github.ref_name }}-darwin-arm64.tar.gz
           tag: ${{ github.ref_name }}
+          prerelease: ${{ env.IS_PRERELEASE }}
           overwrite: true
 
   releases-windows:
     name: Release windows Go Binary
     runs-on: ubuntu-latest
+    needs: create-release
     strategy:
       matrix:
         goos: [windows]
