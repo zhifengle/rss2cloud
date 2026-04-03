@@ -27,8 +27,9 @@ type FlattenResult struct {
 }
 
 type flattenDirPlan struct {
-	entry Entry
-	path  string
+	entry    Entry
+	path     string
+	hadFiles bool
 }
 
 type flattenPlan struct {
@@ -78,6 +79,9 @@ func (s *Session) Flatten(ctx context.Context, target string, opts FlattenOption
 	if !opts.KeepEmptyDirs {
 		result.PlannedRemovals = make([]Entry, 0, len(plan.dirs))
 		for _, dir := range plan.dirs {
+			if !dir.hadFiles {
+				continue
+			}
 			result.PlannedRemovals = append(result.PlannedRemovals, dir.entry)
 		}
 	}
@@ -90,11 +94,15 @@ func (s *Session) Flatten(ctx context.Context, target string, opts FlattenOption
 	}
 
 	result.Moved = make([]Entry, 0, len(plan.files))
+	affectedDirIDs := map[string]struct{}{
+		targetDir.ID: {},
+	}
 	for _, file := range plan.files {
 		moved, err := s.driver.Move(ctx, targetDir.ID, file.ID)
 		if err != nil {
 			return result, err
 		}
+		affectedDirIDs[file.ParentID] = struct{}{}
 		result.Moved = append(result.Moved, moved)
 	}
 
@@ -104,6 +112,9 @@ func (s *Session) Flatten(ctx context.Context, target string, opts FlattenOption
 
 	result.RemovedDirs = make([]Entry, 0, len(plan.dirs))
 	for _, dir := range plan.dirs {
+		if !dir.hadFiles {
+			continue
+		}
 		entries, err := s.driver.List(ctx, dir.entry.ID)
 		if err != nil {
 			return result, err
@@ -114,8 +125,14 @@ func (s *Session) Flatten(ctx context.Context, target string, opts FlattenOption
 		if err := s.driver.Delete(ctx, dir.entry.ID); err != nil {
 			return result, err
 		}
+		affectedDirIDs[dir.entry.ParentID] = struct{}{}
+		affectedDirIDs[dir.entry.ID] = struct{}{}
 		result.RemovedDirs = append(result.RemovedDirs, dir.entry)
 		s.invalidateCwdIfAffected(dir.path)
+	}
+
+	if len(result.Moved) > 0 || len(result.RemovedDirs) > 0 {
+		s.invalidateCachedDirSet(affectedDirIDs)
 	}
 
 	return result, nil
@@ -131,6 +148,7 @@ func (s *Session) buildFlattenPlan(ctx context.Context, dir Entry, dirPath strin
 	})
 
 	plan := flattenPlan{}
+	hadFiles := false
 	for _, entry := range entries {
 		if entry.IsDir() {
 			subPlan, err := s.buildFlattenPlan(ctx, entry, path.Join(dirPath, entry.Name))
@@ -141,10 +159,11 @@ func (s *Session) buildFlattenPlan(ctx context.Context, dir Entry, dirPath strin
 			plan.dirs = append(plan.dirs, subPlan.dirs...)
 			continue
 		}
+		hadFiles = true
 		plan.files = append(plan.files, entry)
 	}
 
-	plan.dirs = append(plan.dirs, flattenDirPlan{entry: dir, path: dirPath})
+	plan.dirs = append(plan.dirs, flattenDirPlan{entry: dir, path: dirPath, hadFiles: hadFiles})
 	return plan, nil
 }
 

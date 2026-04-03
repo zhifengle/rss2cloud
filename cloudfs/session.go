@@ -5,13 +5,24 @@ import (
 	"errors"
 	"path"
 	"strings"
+	"time"
 )
 
+const DefaultListCacheTTL = 5 * time.Second
+
+type listCacheEntry struct {
+	entries   []Entry
+	expiresAt time.Time
+}
+
 type Session struct {
-	driver  Driver
-	root    Entry
-	cwd     Entry
-	cwdPath string
+	driver       Driver
+	root         Entry
+	cwd          Entry
+	cwdPath      string
+	listCache    map[string]listCacheEntry
+	listCacheTTL time.Duration
+	now          func() time.Time
 }
 
 func NewSession(ctx context.Context, driver Driver) (*Session, error) {
@@ -23,10 +34,13 @@ func NewSession(ctx context.Context, driver Driver) (*Session, error) {
 		return nil, err
 	}
 	return &Session{
-		driver:  driver,
-		root:    root,
-		cwd:     root,
-		cwdPath: "/",
+		driver:       driver,
+		root:         root,
+		cwd:          root,
+		cwdPath:      "/",
+		listCache:    make(map[string]listCacheEntry),
+		listCacheTTL: DefaultListCacheTTL,
+		now:          time.Now,
 	}, nil
 }
 
@@ -42,6 +56,22 @@ func (s *Session) Cwd() Entry {
 	return s.cwd
 }
 
+func (s *Session) ListCacheTTL() time.Duration {
+	return s.listCacheTTL
+}
+
+func (s *Session) SetListCacheTTL(ttl time.Duration) {
+	if ttl < 0 {
+		ttl = 0
+	}
+	s.listCacheTTL = ttl
+	s.Refresh()
+}
+
+func (s *Session) Refresh() {
+	s.listCache = make(map[string]listCacheEntry)
+}
+
 func (s *Session) Resolve(ctx context.Context, target string) (Entry, string, error) {
 	absPath := s.absPath(target)
 	if absPath == "/" {
@@ -51,11 +81,12 @@ func (s *Session) Resolve(ctx context.Context, target string) (Entry, string, er
 	segments := splitAbsPath(absPath)
 	current := s.root
 	for _, segment := range segments {
-		// Each Lookup requires the current node to be a directory.
+		// Resolve path segments from cached directory listings when available so
+		// interactive shell navigation and completion do not re-list the same dir.
 		if !current.IsDir() {
 			return Entry{}, "", ErrNotDirectory
 		}
-		next, err := s.driver.Lookup(ctx, current.ID, segment)
+		next, err := s.lookupChild(ctx, current, segment)
 		if err != nil {
 			return Entry{}, "", err
 		}
@@ -90,7 +121,7 @@ func (s *Session) Ls(ctx context.Context, target string) ([]Entry, error) {
 	if !entry.IsDir() {
 		return []Entry{entry}, nil
 	}
-	return s.driver.List(ctx, entry.ID)
+	return s.listDirCached(ctx, entry)
 }
 
 func (s *Session) Mkdir(ctx context.Context, target string) (Entry, error) {
@@ -116,7 +147,12 @@ func (s *Session) Mkdir(ctx context.Context, target string) (Entry, error) {
 	if !parent.IsDir() {
 		return Entry{}, ErrNotDirectory
 	}
-	return s.driver.Mkdir(ctx, parent.ID, name)
+	entry, err := s.driver.Mkdir(ctx, parent.ID, name)
+	if err != nil {
+		return Entry{}, err
+	}
+	s.invalidateCachedDirs(parent.ID)
+	return entry, nil
 }
 
 func (s *Session) Rename(ctx context.Context, target, newName string) (Entry, error) {
@@ -131,6 +167,7 @@ func (s *Session) Rename(ctx context.Context, target, newName string) (Entry, er
 	if err != nil {
 		return Entry{}, err
 	}
+	s.invalidateCachedDirs(entry.ParentID)
 	// If cwd or any ancestor was renamed, refresh the session path.
 	s.refreshCwdAfterRename(entryPath, newName)
 	return result, nil
@@ -143,6 +180,12 @@ func (s *Session) Mv(ctx context.Context, targetDir string, sources ...string) (
 	}
 
 	results := make([]Entry, 0, len(sources))
+	affectedDirIDs := make(map[string]struct{})
+	defer func() {
+		if len(affectedDirIDs) > 0 {
+			s.invalidateCachedDirSet(affectedDirIDs)
+		}
+	}()
 	for _, src := range sources {
 		srcEntry, srcPath, err := s.Resolve(ctx, src)
 		if err != nil {
@@ -152,6 +195,8 @@ func (s *Session) Mv(ctx context.Context, targetDir string, sources ...string) (
 		if err != nil {
 			return results, err
 		}
+		affectedDirIDs[srcEntry.ParentID] = struct{}{}
+		affectedDirIDs[target.ID] = struct{}{}
 		results = append(results, moved)
 		// If cwd or an ancestor was moved, invalidate to root.
 		s.invalidateCwdIfAffected(srcPath)
@@ -165,6 +210,12 @@ func (s *Session) Cp(ctx context.Context, targetDir string, sources ...string) e
 		return err
 	}
 
+	affectedDirIDs := make(map[string]struct{})
+	defer func() {
+		if len(affectedDirIDs) > 0 {
+			s.invalidateCachedDirSet(affectedDirIDs)
+		}
+	}()
 	for _, src := range sources {
 		srcEntry, _, err := s.Resolve(ctx, src)
 		if err != nil {
@@ -173,11 +224,18 @@ func (s *Session) Cp(ctx context.Context, targetDir string, sources ...string) e
 		if err := s.driver.Copy(ctx, target.ID, srcEntry.ID); err != nil {
 			return err
 		}
+		affectedDirIDs[target.ID] = struct{}{}
 	}
 	return nil
 }
 
 func (s *Session) Rm(ctx context.Context, targets ...string) error {
+	affectedDirIDs := make(map[string]struct{})
+	defer func() {
+		if len(affectedDirIDs) > 0 {
+			s.invalidateCachedDirSet(affectedDirIDs)
+		}
+	}()
 	for _, target := range targets {
 		entry, entryPath, err := s.Resolve(ctx, target)
 		if err != nil {
@@ -186,6 +244,8 @@ func (s *Session) Rm(ctx context.Context, targets ...string) error {
 		if err := s.driver.Delete(ctx, entry.ID); err != nil {
 			return err
 		}
+		affectedDirIDs[entry.ParentID] = struct{}{}
+		affectedDirIDs[entry.ID] = struct{}{}
 		// If cwd or an ancestor was deleted, fall back to root.
 		s.invalidateCwdIfAffected(entryPath)
 	}
@@ -248,6 +308,80 @@ func validateBaseName(name string) error {
 		return ErrInvalidName
 	}
 	return nil
+}
+
+func (s *Session) lookupChild(ctx context.Context, parent Entry, name string) (Entry, error) {
+	entries, err := s.listDirCached(ctx, parent)
+	if err != nil {
+		return Entry{}, err
+	}
+	var matched *Entry
+	for _, entry := range entries {
+		if entry.Name != name {
+			continue
+		}
+		if matched != nil {
+			return Entry{}, ErrAmbiguousPath
+		}
+		copy := entry
+		matched = &copy
+	}
+	if matched == nil {
+		return Entry{}, ErrNotFound
+	}
+	return *matched, nil
+}
+
+func (s *Session) listDirCached(ctx context.Context, dir Entry) ([]Entry, error) {
+	if !dir.IsDir() {
+		return nil, ErrNotDirectory
+	}
+	if cached, ok := s.listCache[dir.ID]; ok && s.cacheEntryValid(cached) {
+		return cloneEntries(cached.entries), nil
+	}
+	entries, err := s.driver.List(ctx, dir.ID)
+	if err != nil {
+		return nil, err
+	}
+	if s.listCacheTTL > 0 {
+		now := s.now()
+		s.listCache[dir.ID] = listCacheEntry{
+			entries:   cloneEntries(entries),
+			expiresAt: now.Add(s.listCacheTTL),
+		}
+	}
+	return cloneEntries(entries), nil
+}
+
+func (s *Session) cacheEntryValid(entry listCacheEntry) bool {
+	if s.listCacheTTL <= 0 {
+		return false
+	}
+	return s.now().Before(entry.expiresAt)
+}
+
+func (s *Session) invalidateCachedDirs(dirIDs ...string) {
+	for _, dirID := range dirIDs {
+		if dirID == "" {
+			continue
+		}
+		delete(s.listCache, dirID)
+	}
+}
+
+func (s *Session) invalidateCachedDirSet(dirIDs map[string]struct{}) {
+	for dirID := range dirIDs {
+		if dirID == "" {
+			continue
+		}
+		delete(s.listCache, dirID)
+	}
+}
+
+func cloneEntries(entries []Entry) []Entry {
+	cloned := make([]Entry, len(entries))
+	copy(cloned, entries)
+	return cloned
 }
 
 func (s *Session) absPath(input string) string {

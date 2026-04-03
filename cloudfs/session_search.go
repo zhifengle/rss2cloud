@@ -69,12 +69,19 @@ func (s *Session) SearchMove(
 	}
 
 	results := make([]Entry, 0, len(planned))
+	affectedDirIDs := map[string]struct{}{
+		target.ID: {},
+	}
 	for _, entry := range planned {
 		moved, err := s.driver.Move(ctx, target.ID, entry.ID)
 		if err != nil {
 			return results, err
 		}
+		affectedDirIDs[entry.ParentID] = struct{}{}
 		results = append(results, moved)
+	}
+	if len(results) > 0 {
+		s.invalidateCachedDirSet(affectedDirIDs)
 	}
 	return results, nil
 }

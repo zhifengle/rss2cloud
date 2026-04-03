@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/zhifengle/rss2cloud/cloudfs"
@@ -18,6 +19,7 @@ var (
 	fsPageSize         int
 	fsOpRateLimitMinMs int
 	fsOpRateLimitMaxMs int
+	fsListCacheTTL     time.Duration
 	fsJSON             bool
 )
 
@@ -32,6 +34,7 @@ func init() {
 	fsCmd.PersistentFlags().IntVar(&fsPageSize, "page-size", 0, "list page size hint")
 	fsCmd.PersistentFlags().IntVar(&fsOpRateLimitMinMs, "op-rate-limit-min-ms", 0, "operation rate limit minimum cooldown (ms)")
 	fsCmd.PersistentFlags().IntVar(&fsOpRateLimitMaxMs, "op-rate-limit-max-ms", 0, "operation rate limit maximum cooldown (ms)")
+	fsCmd.PersistentFlags().DurationVar(&fsListCacheTTL, "list-cache-ttl", cloudfs.DefaultListCacheTTL, "directory list cache TTL (0 disables caching)")
 	fsCmd.PersistentFlags().BoolVar(&fsJSON, "json", false, "output as JSON")
 
 	fsCmd.AddCommand(fsPwdCmd)
@@ -86,6 +89,7 @@ func initFsSession(ctx context.Context) *cloudfs.Session {
 		fmt.Fprintf(os.Stderr, "error: init session: %v\n", err)
 		os.Exit(1)
 	}
+	configureSessionListCacheTTL(session, fsListCacheTTL)
 
 	if fsCwd != "" {
 		if _, err := session.Cd(ctx, fsCwd); err != nil {
@@ -93,6 +97,13 @@ func initFsSession(ctx context.Context) *cloudfs.Session {
 		}
 	}
 	return session
+}
+
+func configureSessionListCacheTTL(session *cloudfs.Session, ttl time.Duration) {
+	if session == nil {
+		return
+	}
+	session.SetListCacheTTL(ttl)
 }
 
 // newOperationLimiter is re-exported here for cmd layer use.

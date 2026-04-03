@@ -4,13 +4,59 @@ import (
 	"context"
 	"strings"
 
+	"github.com/reeflective/readline"
+
 	"github.com/zhifengle/rss2cloud/cloudfs"
 )
 
 // shellCommands is the fixed set of commands the shell understands.
 var shellCommands = []string{
-	"pwd", "ls", "cd", "stat", "mkdir", "rename", "mv", "cp", "flatten", "search-mv", "rm",
-	"history", "help", "exit", "quit",
+	"pwd", "ls", "cd", "stat", "mkdir", "rename", "mv", "cp", "flatten", "search-mv", "search_mv", "rm",
+	"refresh", "help", "exit", "quit",
+}
+
+func readlineCompletionPrefix(line string) string {
+	trimmed := line
+	if idx := strings.LastIndexAny(trimmed, " \t"); idx >= 0 {
+		return trimmed[idx+1:]
+	}
+	return trimmed
+}
+
+func readlineCompletionCandidates(candidates []string, tag string) []readline.Completion {
+	completions := make([]readline.Completion, 0, len(candidates))
+	for _, candidate := range candidates {
+		completions = append(completions, readline.Completion{
+			Value:   candidate,
+			Display: candidate,
+			Tag:     tag,
+		})
+	}
+	return completions
+}
+
+func shellReadlineCompletions(ctx context.Context, session *cloudfs.Session, line string, cursor int) readline.Completions {
+	if cursor < 0 {
+		cursor = 0
+	}
+	if cursor > len(line) {
+		cursor = len(line)
+	}
+
+	current := line[:cursor]
+	prefix := readlineCompletionPrefix(current)
+	tokens := parseShellLine(current)
+	tag := "paths"
+	if len(tokens) == 0 || (len(tokens) == 1 && !strings.HasSuffix(current, " ")) {
+		tag = "commands"
+	}
+
+	comps := readline.CompleteRaw(readlineCompletionCandidates(completeInput(ctx, session, current), tag))
+	comps.PREFIX = prefix
+	if tag == "paths" {
+		comps = comps.NoSpace('/')
+	}
+	return comps
 }
 
 // completeInput returns completion candidates for the current input line.

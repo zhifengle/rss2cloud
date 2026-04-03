@@ -2,78 +2,79 @@ package cmd
 
 import (
 	"bufio"
+	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/reeflective/readline"
 )
 
 const defaultHistoryFile = ".rss2cloud_shell_history"
 
-// shellHistory holds in-memory command history and manages disk persistence.
-type shellHistory struct {
-	file    string
-	entries []string
+type readlineHistoryEntry struct {
+	DateTime string `json:"datetime"`
+	Block    string `json:"block"`
 }
 
-func newShellHistory(file string) *shellHistory {
-	h := &shellHistory{file: file}
-	h.load()
-	return h
-}
-
-// add appends a non-empty, non-duplicate-of-last line to history.
-func (h *shellHistory) add(line string) {
-	line = strings.TrimSpace(line)
-	if line == "" {
-		return
+func initShellHistory(file string) (readline.History, error) {
+	if file == "" {
+		return readline.NewInMemoryHistory(), nil
 	}
-	if len(h.entries) > 0 && h.entries[len(h.entries)-1] == line {
-		return
-	}
-	h.entries = append(h.entries, line)
-}
 
-// all returns all history entries (oldest first).
-func (h *shellHistory) all() []string {
-	return h.entries
-}
-
-// save writes history to disk, one entry per line.
-// Parent directories are created as needed.
-func (h *shellHistory) save() error {
-	if h.file == "" {
-		return nil
-	}
-	if dir := filepath.Dir(h.file); dir != "." {
+	if dir := filepath.Dir(file); dir != "." {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	f, err := os.Create(h.file)
+
+	legacy, err := isLegacyShellHistoryFile(file)
 	if err != nil {
-		return err
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+		if err := os.WriteFile(file, nil, 0o600); err != nil {
+			return nil, err
+		}
+	} else if legacy {
+		if err := os.WriteFile(file, nil, 0o600); err != nil {
+			return nil, err
+		}
 	}
-	defer f.Close()
-	w := bufio.NewWriter(f)
-	for _, e := range h.entries {
-		w.WriteString(e)
-		w.WriteByte('\n')
+
+	history, err := readline.NewHistoryFromFile(file)
+	if err != nil {
+		return nil, err
 	}
-	return w.Flush()
+	return history, nil
 }
 
-// load reads history from disk.
-func (h *shellHistory) load() {
-	f, err := os.Open(h.file)
+func isLegacyShellHistoryFile(file string) (bool, error) {
+	f, err := os.Open(file)
 	if err != nil {
-		return
+		return false, err
 	}
 	defer f.Close()
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if line != "" {
-			h.entries = append(h.entries, line)
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+
+		var entry readlineHistoryEntry
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			return true, nil
+		}
+		if strings.TrimSpace(entry.Block) == "" || strings.TrimSpace(entry.DateTime) == "" {
+			return true, nil
 		}
 	}
+
+	if err := scanner.Err(); err != nil {
+		return false, err
+	}
+	return false, nil
 }

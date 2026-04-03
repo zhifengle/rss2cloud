@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 // fakeDriver is an in-memory Driver for testing Session semantics.
@@ -12,6 +13,11 @@ type fakeDriver struct {
 	entries  map[string]Entry
 	children map[string][]string
 	nextID   int
+}
+
+type countingFakeDriver struct {
+	*fakeDriver
+	listCalls map[string]int
 }
 
 func newFakeDriver() *fakeDriver {
@@ -30,6 +36,13 @@ func newFakeDriver() *fakeDriver {
 			"3": {"5"},
 		},
 		nextID: 6,
+	}
+}
+
+func newCountingFakeDriver() *countingFakeDriver {
+	return &countingFakeDriver{
+		fakeDriver: newFakeDriver(),
+		listCalls:  make(map[string]int),
 	}
 }
 
@@ -60,6 +73,11 @@ func (d *fakeDriver) List(_ context.Context, dirID string) ([]Entry, error) {
 		items = append(items, d.entries[id])
 	}
 	return items, nil
+}
+
+func (d *countingFakeDriver) List(ctx context.Context, dirID string) ([]Entry, error) {
+	d.listCalls[dirID]++
+	return d.fakeDriver.List(ctx, dirID)
 }
 
 func (d *fakeDriver) Lookup(_ context.Context, parentID, name string) (Entry, error) {
@@ -423,16 +441,62 @@ func TestFlattenRequiresDirectory(t *testing.T) {
 	}
 }
 
-func TestFlattenSkeletonReturnsUnsupported(t *testing.T) {
+func TestFlattenReturnsResolvedTargetAndNoError(t *testing.T) {
 	ctx := context.Background()
 	s, _ := NewSession(ctx, newFakeDriver())
 
 	result, err := s.Flatten(ctx, "/anime", FlattenOptions{})
-	if !errors.Is(err, ErrUnsupported) {
-		t.Fatalf("expected ErrUnsupported, got %v", err)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
 	}
 	if result.Target.ID != "1" {
 		t.Fatalf("expected resolved target to be anime, got %+v", result.Target)
+	}
+	if len(result.Moved) != 1 || result.Moved[0].ID != "5" {
+		t.Fatalf("expected moved nested file episode-02.mkv, got %+v", result.Moved)
+	}
+	if len(result.RemovedDirs) != 1 || result.RemovedDirs[0].ID != "3" {
+		t.Fatalf("expected removed descendant dir sub, got %+v", result.RemovedDirs)
+	}
+}
+
+func TestFlattenDoesNotRemoveOriginallyEmptyDescendantDirs(t *testing.T) {
+	ctx := context.Background()
+	d := newFakeDriver()
+	d.entries["6"] = Entry{ID: "6", ParentID: "1", Name: "empty", Type: EntryTypeDirectory}
+	d.children["1"] = append(d.children["1"], "6")
+	d.children["6"] = []string{}
+
+	s, _ := NewSession(ctx, d)
+	result, err := s.Flatten(ctx, "/anime", FlattenOptions{})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(result.RemovedDirs) != 1 || result.RemovedDirs[0].ID != "3" {
+		t.Fatalf("expected only descendant dir with moved files to be removed, got %+v", result.RemovedDirs)
+	}
+	if _, _, err := s.Resolve(ctx, "/anime/empty"); err != nil {
+		t.Fatalf("expected originally empty dir to remain, got %v", err)
+	}
+}
+
+func TestFlattenDryRunDoesNotPlanRemovalForOriginallyEmptyDirs(t *testing.T) {
+	ctx := context.Background()
+	d := newFakeDriver()
+	d.entries["6"] = Entry{ID: "6", ParentID: "1", Name: "empty", Type: EntryTypeDirectory}
+	d.children["1"] = append(d.children["1"], "6")
+	d.children["6"] = []string{}
+
+	s, _ := NewSession(ctx, d)
+	result, err := s.Flatten(ctx, "/anime", FlattenOptions{DryRun: true})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(result.PlannedRemovals) != 1 || result.PlannedRemovals[0].ID != "3" {
+		t.Fatalf("expected only descendant dir with planned file moves to be removed, got %+v", result.PlannedRemovals)
+	}
+	if len(result.RemovedDirs) != 0 {
+		t.Fatalf("expected no removals in dry-run, got %+v", result.RemovedDirs)
 	}
 }
 
@@ -550,5 +614,260 @@ func TestRmCwdFallsBackToRoot(t *testing.T) {
 	}
 	if s.Pwd() != "/" {
 		t.Fatalf("expected pwd / after cwd deleted, got %q", s.Pwd())
+	}
+}
+
+func TestMkdirInvalidatesOnlyParentDirectoryCache(t *testing.T) {
+	ctx := context.Background()
+	d := newCountingFakeDriver()
+	s, _ := NewSession(ctx, d)
+
+	if _, err := s.Ls(ctx, "/"); err != nil {
+		t.Fatalf("Ls(/) failed: %v", err)
+	}
+	if _, err := s.Ls(ctx, "/anime"); err != nil {
+		t.Fatalf("Ls(/anime) failed: %v", err)
+	}
+	if _, err := s.Mkdir(ctx, "/anime/newdir"); err != nil {
+		t.Fatalf("Mkdir failed: %v", err)
+	}
+
+	if _, err := s.Ls(ctx, "/anime"); err != nil {
+		t.Fatalf("Ls(/anime) after mkdir failed: %v", err)
+	}
+	if _, err := s.Ls(ctx, "/"); err != nil {
+		t.Fatalf("Ls(/) after mkdir failed: %v", err)
+	}
+
+	if got := d.listCalls["1"]; got != 2 {
+		t.Fatalf("expected /anime list reloaded once, got %d", got)
+	}
+	if got := d.listCalls["0"]; got != 1 {
+		t.Fatalf("expected root cache to stay warm, got %d", got)
+	}
+}
+
+func TestMvInvalidatesSourceAndTargetDirectoryCachesOnly(t *testing.T) {
+	ctx := context.Background()
+	d := newCountingFakeDriver()
+	s, _ := NewSession(ctx, d)
+
+	if _, err := s.Ls(ctx, "/"); err != nil {
+		t.Fatalf("Ls(/) failed: %v", err)
+	}
+	if _, err := s.Ls(ctx, "/anime"); err != nil {
+		t.Fatalf("Ls(/anime) failed: %v", err)
+	}
+	if _, err := s.Ls(ctx, "/anime/sub"); err != nil {
+		t.Fatalf("Ls(/anime/sub) failed: %v", err)
+	}
+
+	if _, err := s.Mv(ctx, "/anime/sub", "/notes.txt"); err != nil {
+		t.Fatalf("Mv failed: %v", err)
+	}
+
+	if _, err := s.Ls(ctx, "/"); err != nil {
+		t.Fatalf("Ls(/) after mv failed: %v", err)
+	}
+	if _, err := s.Ls(ctx, "/anime/sub"); err != nil {
+		t.Fatalf("Ls(/anime/sub) after mv failed: %v", err)
+	}
+	if _, err := s.Ls(ctx, "/anime"); err != nil {
+		t.Fatalf("Ls(/anime) after mv failed: %v", err)
+	}
+
+	if got := d.listCalls["0"]; got != 2 {
+		t.Fatalf("expected root list to reload after mv, got %d", got)
+	}
+	if got := d.listCalls["3"]; got != 2 {
+		t.Fatalf("expected target dir list to reload after mv, got %d", got)
+	}
+	if got := d.listCalls["1"]; got != 1 {
+		t.Fatalf("expected unrelated /anime cache to stay warm, got %d", got)
+	}
+}
+
+func TestSearchMoveInvalidatesOnlyMovedDirectories(t *testing.T) {
+	ctx := context.Background()
+	d := newCountingFakeDriver()
+	s, _ := NewSession(ctx, d)
+
+	if _, err := s.Ls(ctx, "/"); err != nil {
+		t.Fatalf("Ls(/) failed: %v", err)
+	}
+	if _, err := s.Ls(ctx, "/anime"); err != nil {
+		t.Fatalf("Ls(/anime) failed: %v", err)
+	}
+	if _, err := s.Ls(ctx, "/anime/sub"); err != nil {
+		t.Fatalf("Ls(/anime/sub) failed: %v", err)
+	}
+	rootBefore := d.listCalls["0"]
+	animeBefore := d.listCalls["1"]
+	subBefore := d.listCalls["3"]
+
+	if _, err := s.SearchMove(ctx, "/anime", "episode", "/", SearchOptions{}); err != nil {
+		t.Fatalf("SearchMove failed: %v", err)
+	}
+
+	if _, err := s.Ls(ctx, "/"); err != nil {
+		t.Fatalf("Ls(/) after search-move failed: %v", err)
+	}
+	if _, err := s.Ls(ctx, "/anime"); err != nil {
+		t.Fatalf("Ls(/anime) after search-move failed: %v", err)
+	}
+	if _, err := s.Ls(ctx, "/anime/sub"); err != nil {
+		t.Fatalf("Ls(/anime/sub) after search-move failed: %v", err)
+	}
+
+	if got := d.listCalls["0"] - rootBefore; got != 2 {
+		t.Fatalf("expected root list to be read once for planning and once after invalidation, got delta %d", got)
+	}
+	if got := d.listCalls["1"] - animeBefore; got != 1 {
+		t.Fatalf("expected /anime list to reload once after invalidation, got delta %d", got)
+	}
+	if got := d.listCalls["3"] - subBefore; got != 1 {
+		t.Fatalf("expected /anime/sub list to reload once after invalidation, got delta %d", got)
+	}
+}
+
+func TestFlattenKeepsUnrelatedDirectoryCacheWarm(t *testing.T) {
+	ctx := context.Background()
+	d := newCountingFakeDriver()
+	d.entries["6"] = Entry{ID: "6", ParentID: "0", Name: "docs", Type: EntryTypeDirectory}
+	d.children["0"] = append(d.children["0"], "6")
+	d.children["6"] = []string{}
+	s, _ := NewSession(ctx, d)
+
+	if _, err := s.Ls(ctx, "/docs"); err != nil {
+		t.Fatalf("Ls(/docs) failed: %v", err)
+	}
+	if _, err := s.Ls(ctx, "/anime"); err != nil {
+		t.Fatalf("Ls(/anime) failed: %v", err)
+	}
+	if _, err := s.Ls(ctx, "/anime/sub"); err != nil {
+		t.Fatalf("Ls(/anime/sub) failed: %v", err)
+	}
+	docsBefore := d.listCalls["6"]
+	animeBefore := d.listCalls["1"]
+
+	if _, err := s.Flatten(ctx, "/anime", FlattenOptions{}); err != nil {
+		t.Fatalf("Flatten failed: %v", err)
+	}
+
+	if _, err := s.Ls(ctx, "/docs"); err != nil {
+		t.Fatalf("Ls(/docs) after flatten failed: %v", err)
+	}
+	if _, err := s.Ls(ctx, "/anime"); err != nil {
+		t.Fatalf("Ls(/anime) after flatten failed: %v", err)
+	}
+
+	if got := d.listCalls["6"] - docsBefore; got != 0 {
+		t.Fatalf("expected unrelated /docs cache to stay warm, got delta %d", got)
+	}
+	if got := d.listCalls["1"] - animeBefore; got != 2 {
+		t.Fatalf("expected /anime to be read once for planning and once after invalidation, got delta %d", got)
+	}
+}
+
+func TestListCacheTTLUsesCachedEntryBeforeExpiry(t *testing.T) {
+	ctx := context.Background()
+	d := newCountingFakeDriver()
+	s, _ := NewSession(ctx, d)
+	base := time.Unix(100, 0)
+	s.listCacheTTL = 5 * time.Second
+	s.now = func() time.Time { return base }
+
+	if _, err := s.Ls(ctx, "/"); err != nil {
+		t.Fatalf("Ls(/) failed: %v", err)
+	}
+	if _, err := s.Ls(ctx, "/"); err != nil {
+		t.Fatalf("second Ls(/) failed: %v", err)
+	}
+
+	if got := d.listCalls["0"]; got != 1 {
+		t.Fatalf("expected cached root listing before TTL expiry, got %d calls", got)
+	}
+}
+
+func TestListCacheTTLReloadsAfterExpiry(t *testing.T) {
+	ctx := context.Background()
+	d := newCountingFakeDriver()
+	s, _ := NewSession(ctx, d)
+	current := time.Unix(100, 0)
+	s.listCacheTTL = 5 * time.Second
+	s.now = func() time.Time { return current }
+
+	if _, err := s.Ls(ctx, "/"); err != nil {
+		t.Fatalf("Ls(/) failed: %v", err)
+	}
+	current = current.Add(6 * time.Second)
+	if _, err := s.Ls(ctx, "/"); err != nil {
+		t.Fatalf("Ls(/) after expiry failed: %v", err)
+	}
+
+	if got := d.listCalls["0"]; got != 2 {
+		t.Fatalf("expected root listing to reload after TTL expiry, got %d calls", got)
+	}
+}
+
+func TestSessionRefreshClearsCachedListings(t *testing.T) {
+	ctx := context.Background()
+	d := newCountingFakeDriver()
+	s, _ := NewSession(ctx, d)
+	s.listCacheTTL = time.Minute
+
+	if _, err := s.Ls(ctx, "/"); err != nil {
+		t.Fatalf("Ls(/) failed: %v", err)
+	}
+	s.Refresh()
+	if _, err := s.Ls(ctx, "/"); err != nil {
+		t.Fatalf("Ls(/) after refresh failed: %v", err)
+	}
+
+	if got := d.listCalls["0"]; got != 2 {
+		t.Fatalf("expected refresh to clear root cache, got %d calls", got)
+	}
+}
+
+func TestSetListCacheTTLDisablesCaching(t *testing.T) {
+	ctx := context.Background()
+	d := newCountingFakeDriver()
+	s, _ := NewSession(ctx, d)
+	s.SetListCacheTTL(0)
+
+	if _, err := s.Ls(ctx, "/"); err != nil {
+		t.Fatalf("Ls(/) failed: %v", err)
+	}
+	if _, err := s.Ls(ctx, "/"); err != nil {
+		t.Fatalf("second Ls(/) failed: %v", err)
+	}
+
+	if got := s.ListCacheTTL(); got != 0 {
+		t.Fatalf("expected TTL 0 after disabling cache, got %v", got)
+	}
+	if got := d.listCalls["0"]; got != 2 {
+		t.Fatalf("expected disabled cache to reload every time, got %d calls", got)
+	}
+}
+
+func TestSetListCacheTTLRefreshesExistingCache(t *testing.T) {
+	ctx := context.Background()
+	d := newCountingFakeDriver()
+	s, _ := NewSession(ctx, d)
+	s.SetListCacheTTL(time.Minute)
+
+	if _, err := s.Ls(ctx, "/"); err != nil {
+		t.Fatalf("Ls(/) failed: %v", err)
+	}
+	s.SetListCacheTTL(2 * time.Second)
+	if _, err := s.Ls(ctx, "/"); err != nil {
+		t.Fatalf("Ls(/) after TTL change failed: %v", err)
+	}
+
+	if got := s.ListCacheTTL(); got != 2*time.Second {
+		t.Fatalf("expected updated TTL, got %v", got)
+	}
+	if got := d.listCalls["0"]; got != 2 {
+		t.Fatalf("expected TTL change to flush cached root listing, got %d calls", got)
 	}
 }

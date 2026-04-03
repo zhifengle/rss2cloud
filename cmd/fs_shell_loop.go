@@ -2,20 +2,17 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
-	"os"
-	"strconv"
 	"strings"
 
-	"golang.org/x/term"
+	"github.com/reeflective/readline"
 
 	"github.com/zhifengle/rss2cloud/cloudfs"
 )
 
-type lineReadState struct {
-	skipLeadingLF bool
-}
+var errNonInteractiveShell = errors.New("fs shell requires an interactive terminal")
 
 const shellHelp = `Available commands:
   pwd                        print working directory
@@ -26,239 +23,70 @@ const shellHelp = `Available commands:
   rename <path> <new-name>   rename object
   mv <src...> <target-dir>   move objects
   cp <src...> <target-dir>   copy objects
-  flatten <dir>              flatten descendant files into dir
-  search-mv <root> <keyword> <target-dir>
-                             search files and move matches
+	flatten <dir>              flatten descendant files into dir
+	search-mv <root> <keyword> <target-dir>
+	search_mv <root> <keyword> <target-dir>
+	                             search files and move matches
   rm <path...>               delete objects
-  history                    show command history
-  !N                         re-run history entry N
+  refresh                    clear session cache
   help                       show this help
-  exit / quit                leave the shell`
+  exit / quit                leave the shell
 
-// runShellLoop runs the interactive REPL until the user exits or EOF.
-// When stdin is a real terminal it switches to raw mode so Tab completion
-// and backspace work character-by-character. When stdin is a pipe or
-// redirected file it falls back to the same byte-by-byte reader without
-// raw mode (used by tests and scripted input).
-func runShellLoop(
-	ctx context.Context,
-	session *cloudfs.Session,
-	history *shellHistory,
-	in io.Reader,
-	out io.Writer,
-) {
-	readState := &lineReadState{}
+Line editing, history navigation, and search are provided by reeflective/readline.`
 
-	// Attempt raw mode only when in is os.Stdin and it is a real terminal.
-	if f, ok := in.(*os.File); ok && term.IsTerminal(int(f.Fd())) {
-		oldState, err := term.MakeRaw(int(f.Fd()))
-		if err == nil {
-			defer term.Restore(int(f.Fd()), oldState)
-		}
-		// In raw mode \r is sent instead of \n on Enter; we handle both below.
+func runShellLoop(ctx context.Context, session *cloudfs.Session, out io.Writer, historyFile string) error {
+	rl, err := newShellReadline(ctx, session, historyFile)
+	if err != nil {
+		return err
 	}
 
 	for {
-		fmt.Fprintf(out, "%s:%s> ", session.Provider(), session.Pwd())
-
-		line, eof := readLineWithCompletion(ctx, session, in, out, readState)
-		line = strings.TrimSpace(line)
-
-		if line != "" {
-			// Handle !N history recall before adding to history.
-			if strings.HasPrefix(line, "!") {
-				recalled, ok := recallHistory(history, line[1:], out)
-				if !ok {
-					if eof {
-						break
-					}
-					continue
-				}
-				line = recalled
-				fmt.Fprintln(out, line)
-			}
-
-			history.add(line)
-
-			if done := dispatchShellCommand(ctx, session, history, out, line); done || eof {
-				break
-			}
-		} else if eof {
-			fmt.Fprintln(out)
-			break
-		}
-	}
-}
-
-// readLineWithCompletion reads one line from in, handling Tab for completion.
-// Returns the line (without trailing newline) and whether EOF was reached.
-// Both \n (Unix) and \r (raw-mode Enter / Windows CR) are treated as line
-// terminators. When the previous line ended with \r we skip a single leading
-// \n on the next call so CRLF input does not create a spurious empty line,
-// while raw-mode terminals that only send \r remain non-blocking.
-func readLineWithCompletion(
-	ctx context.Context,
-	session *cloudfs.Session,
-	in io.Reader,
-	out io.Writer,
-	state *lineReadState,
-) (string, bool) {
-	var buf []byte
-	b := make([]byte, 1)
-	haveByte := false
-	var ch byte
-
-	for {
-		if !haveByte {
-			n, err := in.Read(b)
-			if n == 0 || err != nil {
-				// EOF — return whatever is buffered (may be non-empty for unterminated last line).
-				return string(buf), true
-			}
-			ch = b[0]
-		} else {
-			haveByte = false
-		}
-
-		if state != nil && state.skipLeadingLF {
-			state.skipLeadingLF = false
-			if ch == '\n' {
-				continue
-			}
-		}
-
-		switch ch {
-		case '\n':
-			// Both \n and \r end the line. In cooked mode the OS converts Enter
-			// to \n. In raw mode Enter sends \r. We never peek for a following
-			// \n because that would block on a real terminal.
-			fmt.Fprintln(out)
-			return string(buf), false
-		case '\r':
-			if state != nil {
-				state.skipLeadingLF = true
-			}
-			fmt.Fprintln(out)
-			return string(buf), false
-		case '\t':
-			line := string(buf)
-			candidates := completeInput(ctx, session, line)
-			if len(candidates) == 0 {
-				fmt.Fprint(out, "\a")
-			} else if len(candidates) == 1 {
-				completed := completeSuffix(line, candidates[0])
-				if strings.HasPrefix(completed, "\x00") {
-					// Full token replacement: erase current token and write new one.
-					lastSpace := strings.LastIndex(line, " ")
-					tokenLen := len(line)
-					if lastSpace >= 0 {
-						tokenLen = len(line) - lastSpace - 1
-					}
-					// Erase tokenLen chars from terminal.
-					for i := 0; i < tokenLen; i++ {
-						fmt.Fprint(out, "\b \b")
-					}
-					replacement := completed[1:] // strip \x00
-					fmt.Fprint(out, replacement)
-					if lastSpace >= 0 {
-						buf = append(buf[:lastSpace+1], []byte(replacement)...)
-					} else {
-						buf = []byte(replacement)
-					}
-				} else {
-					fmt.Fprint(out, completed)
-					buf = append(buf, []byte(completed)...)
-				}
-			} else {
+		line, err := rl.Readline()
+		if err != nil {
+			switch {
+			case errors.Is(err, io.EOF):
 				fmt.Fprintln(out)
-				for _, c := range candidates {
-					fmt.Fprintf(out, "  %s\n", c)
-				}
-				fmt.Fprintf(out, "%s:%s> %s", session.Provider(), session.Pwd(), string(buf))
+				return nil
+			case errors.Is(err, readline.ErrInterrupt):
+				continue
+			default:
+				return err
 			}
-		case 127, '\b':
-			if len(buf) > 0 {
-				buf = buf[:len(buf)-1]
-				fmt.Fprint(out, "\b \b")
-			}
-		case 3:
-			// Ctrl-C — clear line.
-			fmt.Fprintln(out)
-			return "", false
-		default:
-			if ch >= 32 {
-				buf = append(buf, ch)
-				out.Write([]byte{ch}) //nolint:errcheck
-			}
+		}
+
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		if done := dispatchShellCommand(ctx, session, out, line); done {
+			return nil
 		}
 	}
 }
 
-// completeSuffix returns the text that should be appended to line to reach
-// the candidate. It accounts for quoted candidates: if the candidate is
-// quoted (contains spaces), the entire last token on the line is replaced
-// by the quoted candidate.
-func completeSuffix(line, candidate string) string {
-	lastSpace := strings.LastIndex(line, " ")
-	var currentToken string
-	if lastSpace >= 0 {
-		currentToken = line[lastSpace+1:]
-	} else {
-		currentToken = line
+func newShellReadline(ctx context.Context, session *cloudfs.Session, historyFile string) (*readline.Shell, error) {
+	history, err := initShellHistory(historyFile)
+	if err != nil {
+		return nil, err
 	}
 
-	// If the candidate is quoted, replace the whole current token.
-	if quote := leadingQuote(candidate); quote != 0 {
-		// currentToken may start with a quote already (user typed 'my).
-		// Return the full quoted candidate minus what the user already typed.
-		rawToken := stripLeadingQuote(currentToken)
-		rawCandidate := candidate[1 : len(candidate)-1] // strip surrounding quotes
-		if strings.HasPrefix(rawCandidate, rawToken) {
-			// Suffix = rest of raw candidate + closing quote, minus the opening
-			// quote the user may or may not have typed.
-			suffix := rawCandidate[len(rawToken):] + string(quote)
-			if len(currentToken) == 0 || currentToken[0] != quote {
-				suffix = string(quote) + rawCandidate + string(quote)
-				// We need to replace the whole token, not just append.
-				// Signal this by returning the full replacement prefixed with \x00.
-				return "\x00" + suffix
-			}
-			return suffix
-		}
-		return ""
+	rl := readline.NewShell()
+	rl.Prompt.Primary(func() string {
+		return fmt.Sprintf("%s:%s> ", session.Provider(), session.Pwd())
+	})
+	rl.History.Delete()
+	rl.History.Add("rss2cloud fs shell", history)
+	rl.Completer = func(line []rune, cursor int) readline.Completions {
+		return shellReadlineCompletions(ctx, session, string(line), cursor)
 	}
 
-	// Unquoted candidate — simple prefix match.
-	if strings.HasPrefix(candidate, currentToken) {
-		return candidate[len(currentToken):]
-	}
-	return ""
-}
-
-func leadingQuote(s string) byte {
-	if len(s) < 2 {
-		return 0
-	}
-	if (s[0] == '\'' || s[0] == '"') && s[len(s)-1] == s[0] {
-		return s[0]
-	}
-	return 0
-}
-
-// recallHistory looks up history entry by 1-based index string.
-// Returns the recalled line and true on success.
-func recallHistory(history *shellHistory, indexStr string, out io.Writer) (string, bool) {
-	n, err := strconv.Atoi(strings.TrimSpace(indexStr))
-	if err != nil || n < 1 || n > len(history.all()) {
-		fmt.Fprintf(out, "error: !%s: no such history entry\n", indexStr)
-		return "", false
-	}
-	return history.all()[n-1], true
+	return rl, nil
 }
 
 // dispatchShellCommand parses and executes one shell line.
 // Returns true when the shell should exit.
-func dispatchShellCommand(ctx context.Context, session *cloudfs.Session, history *shellHistory, out io.Writer, line string) bool {
+func dispatchShellCommand(ctx context.Context, session *cloudfs.Session, out io.Writer, line string) bool {
 	tokens := parseShellLine(line)
 	if len(tokens) == 0 {
 		return false
@@ -272,14 +100,13 @@ func dispatchShellCommand(ctx context.Context, session *cloudfs.Session, history
 	case "help":
 		fmt.Fprintln(out, shellHelp)
 
-	case "history":
+	case "refresh":
 		if len(args) != 0 {
-			fmt.Fprintln(out, "usage: history")
+			fmt.Fprintln(out, "usage: refresh")
 			break
 		}
-		for i, e := range history.all() {
-			fmt.Fprintf(out, "  %3d  %s\n", i+1, e)
-		}
+		session.Refresh()
+		fmt.Fprintln(out, "cache cleared")
 
 	case "pwd":
 		if len(args) != 0 {
@@ -394,7 +221,7 @@ func dispatchShellCommand(ctx context.Context, session *cloudfs.Session, history
 			args[0], len(result.Moved), len(result.RemovedDirs),
 		)
 
-	case "search-mv":
+	case "search-mv", "search_mv":
 		if len(args) != 3 {
 			fmt.Fprintln(out, "usage: search-mv <root> <keyword> <target-dir>")
 			break

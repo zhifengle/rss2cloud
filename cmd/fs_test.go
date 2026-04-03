@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/zhifengle/rss2cloud/cloudfs"
 )
@@ -14,6 +15,11 @@ type cmdFakeDriver struct {
 	entries  map[string]cloudfs.Entry
 	children map[string][]string
 	nextID   int
+}
+
+type countingCmdFakeDriver struct {
+	*cmdFakeDriver
+	listCalls map[string]int
 }
 
 func newCmdFakeDriver() *cmdFakeDriver {
@@ -29,6 +35,13 @@ func newCmdFakeDriver() *cmdFakeDriver {
 			"1": {"3"},
 		},
 		nextID: 4,
+	}
+}
+
+func newCountingCmdFakeDriver() *countingCmdFakeDriver {
+	return &countingCmdFakeDriver{
+		cmdFakeDriver: newCmdFakeDriver(),
+		listCalls:     make(map[string]int),
 	}
 }
 
@@ -53,6 +66,10 @@ func (d *cmdFakeDriver) List(_ context.Context, dirID string) ([]cloudfs.Entry, 
 		out = append(out, d.entries[id])
 	}
 	return out, nil
+}
+func (d *countingCmdFakeDriver) List(ctx context.Context, dirID string) ([]cloudfs.Entry, error) {
+	d.listCalls[dirID]++
+	return d.cmdFakeDriver.List(ctx, dirID)
 }
 func (d *cmdFakeDriver) Lookup(_ context.Context, parentID, name string) (cloudfs.Entry, error) {
 	for _, id := range d.children[parentID] {
@@ -168,6 +185,18 @@ func TestSearchMvRequiresExactlyThreeArgs(t *testing.T) {
 	}
 }
 
+func TestSearchMvAliasIncludesSearchUnderscoreMv(t *testing.T) {
+	found := false
+	for _, alias := range fsSearchMvCmd.Aliases {
+		if alias == "search_mv" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected search_mv alias on search-mv command")
+	}
+}
+
 func TestFlattenRequiresExactlyOneArg(t *testing.T) {
 	if err := fsFlattenCmd.Args(fsFlattenCmd, []string{}); err == nil {
 		t.Fatal("expected error for zero args to flatten")
@@ -196,6 +225,20 @@ func TestCwdFlagChangesStartingDirectory(t *testing.T) {
 	}
 	if s.Pwd() != "/anime" {
 		t.Fatalf("expected /anime, got %s", s.Pwd())
+	}
+}
+
+func TestConfigureSessionListCacheTTLUsesFlagValue(t *testing.T) {
+	s := newTestSession(t)
+	configureSessionListCacheTTL(s, 3*time.Second)
+	if got := s.ListCacheTTL(); got != 3*time.Second {
+		t.Fatalf("expected TTL 3s, got %v", got)
+	}
+}
+
+func TestFsListCacheTTLDefault(t *testing.T) {
+	if fsListCacheTTL != cloudfs.DefaultListCacheTTL {
+		t.Fatalf("expected default fs list cache TTL %v, got %v", cloudfs.DefaultListCacheTTL, fsListCacheTTL)
 	}
 }
 

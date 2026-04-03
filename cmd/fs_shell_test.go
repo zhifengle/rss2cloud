@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -39,15 +40,21 @@ func TestParseShellLine_Empty(t *testing.T) {
 	}
 }
 
-// --- shell loop dispatch ---
+func TestParseShellLine_BackslashEscapes(t *testing.T) {
+	tokens := parseShellLine(`cd Bob\'s\ \"show\"/`)
+	if len(tokens) != 2 || tokens[1] != `Bob's "show"/` {
+		t.Fatalf("unexpected tokens: %v", tokens)
+	}
+}
+
+// --- shell dispatch ---
 
 func runShellCmd(t *testing.T, line string) string {
 	t.Helper()
 	ctx := context.Background()
 	session := newTestSession(t)
-	history := &shellHistory{}
 	var buf bytes.Buffer
-	dispatchShellCommand(ctx, session, history, &buf, line)
+	dispatchShellCommand(ctx, session, &buf, line)
 	return buf.String()
 }
 
@@ -60,8 +67,15 @@ func TestShellPwd(t *testing.T) {
 
 func TestShellHelp(t *testing.T) {
 	out := runShellCmd(t, "help")
-	if !strings.Contains(out, "pwd") || !strings.Contains(out, "ls") {
+	if !strings.Contains(out, "pwd") || !strings.Contains(out, "ls") || !strings.Contains(out, "refresh") {
 		t.Fatalf("help output missing commands: %q", out)
+	}
+}
+
+func TestHelpRemovesLegacyHistoryCommands(t *testing.T) {
+	out := runShellCmd(t, "help")
+	if strings.Contains(out, "\n  history") || strings.Contains(out, "\n  !N") {
+		t.Fatalf("expected help without legacy history commands, got %q", out)
 	}
 }
 
@@ -75,10 +89,9 @@ func TestShellUnknownCommand(t *testing.T) {
 func TestShellCdChangesPwd(t *testing.T) {
 	ctx := context.Background()
 	session := newTestSession(t)
-	history := &shellHistory{}
 	var buf bytes.Buffer
 
-	dispatchShellCommand(ctx, session, history, &buf, "cd /anime")
+	dispatchShellCommand(ctx, session, &buf, "cd /anime")
 	if session.Pwd() != "/anime" {
 		t.Fatalf("expected /anime after cd, got %q", session.Pwd())
 	}
@@ -108,13 +121,12 @@ func TestShellRename(t *testing.T) {
 func TestShellExitReturnsTrue(t *testing.T) {
 	ctx := context.Background()
 	session := newTestSession(t)
-	history := &shellHistory{}
 	var buf bytes.Buffer
-	done := dispatchShellCommand(ctx, session, history, &buf, "exit")
+	done := dispatchShellCommand(ctx, session, &buf, "exit")
 	if !done {
 		t.Fatal("expected exit to return true")
 	}
-	done = dispatchShellCommand(ctx, session, history, &buf, "quit")
+	done = dispatchShellCommand(ctx, session, &buf, "quit")
 	if !done {
 		t.Fatal("expected quit to return true")
 	}
@@ -141,56 +153,60 @@ func TestShellSearchMvOutput(t *testing.T) {
 	}
 }
 
-func TestShellFlattenShowsUnsupported(t *testing.T) {
+func TestShellSearchMvUnderscoreAliasOutput(t *testing.T) {
+	out := runShellCmd(t, "search_mv /anime episode /")
+	if !strings.Contains(out, "moved") {
+		t.Fatalf("expected 'moved' in search_mv output, got %q", out)
+	}
+}
+
+func TestShellFlattenOutput(t *testing.T) {
 	out := runShellCmd(t, "flatten /anime")
-	if !strings.Contains(out, "unsupported") {
-		t.Fatalf("expected unsupported error in flatten output, got %q", out)
+	if !strings.Contains(out, "flattened") {
+		t.Fatalf("expected flatten output, got %q", out)
 	}
 }
 
 func TestShellRm(t *testing.T) {
 	ctx := context.Background()
 	session := newTestSession(t)
-	history := &shellHistory{}
 	var buf bytes.Buffer
-	dispatchShellCommand(ctx, session, history, &buf, "rm /notes.txt")
-	// After rm, stat should fail.
-	dispatchShellCommand(ctx, session, history, &buf, "stat /notes.txt")
+	dispatchShellCommand(ctx, session, &buf, "rm /notes.txt")
+	dispatchShellCommand(ctx, session, &buf, "stat /notes.txt")
 	if !strings.Contains(buf.String(), "error") {
 		t.Fatalf("expected error after rm, got %q", buf.String())
 	}
 }
 
-// --- history ---
+func TestShellRefreshClearsSessionCache(t *testing.T) {
+	ctx := context.Background()
+	d := newCountingCmdFakeDriver()
+	session, err := cloudfs.NewSession(ctx, d)
+	if err != nil {
+		t.Fatalf("NewSession: %v", err)
+	}
+	var buf bytes.Buffer
 
-func TestShellHistoryAdd(t *testing.T) {
-	h := &shellHistory{}
-	h.add("ls /")
-	h.add("cd /anime")
-	h.add("cd /anime") // duplicate — should be skipped
-	if len(h.all()) != 2 {
-		t.Fatalf("expected 2 entries, got %d", len(h.all()))
+	if _, err := session.Ls(ctx, "/"); err != nil {
+		t.Fatalf("Ls(/) failed: %v", err)
+	}
+	dispatchShellCommand(ctx, session, &buf, "refresh")
+	if _, err := session.Ls(ctx, "/"); err != nil {
+		t.Fatalf("Ls(/) after refresh failed: %v", err)
+	}
+
+	if got := d.listCalls["0"]; got != 2 {
+		t.Fatalf("expected refresh to clear root cache, got %d calls", got)
+	}
+	if !strings.Contains(buf.String(), "cache cleared") {
+		t.Fatalf("expected refresh output, got %q", buf.String())
 	}
 }
 
-func TestShellHistorySaveLoad(t *testing.T) {
-	f, err := os.CreateTemp("", "hist_*.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.Close()
-	defer os.Remove(f.Name())
-
-	h := newShellHistory(f.Name())
-	h.add("ls /")
-	h.add("cd /anime")
-	if err := h.save(); err != nil {
-		t.Fatalf("save failed: %v", err)
-	}
-
-	h2 := newShellHistory(f.Name())
-	if len(h2.all()) != 2 || h2.all()[0] != "ls /" {
-		t.Fatalf("unexpected loaded history: %v", h2.all())
+func TestShellRefreshRejectsArgs(t *testing.T) {
+	out := runShellCmd(t, "refresh now")
+	if !strings.Contains(out, "usage") {
+		t.Fatalf("expected usage error for 'refresh now', got %q", out)
 	}
 }
 
@@ -237,10 +253,24 @@ func TestCompleteCommandNames(t *testing.T) {
 	}
 }
 
+func TestCompleteCommandNamesIncludesRefresh(t *testing.T) {
+	ctx := context.Background()
+	session := newTestSession(t)
+	candidates := completeInput(ctx, session, "ref")
+	found := false
+	for _, c := range candidates {
+		if c == "refresh" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected 'refresh' in completions, got %v", candidates)
+	}
+}
+
 func TestCompletePathAfterCommand(t *testing.T) {
 	ctx := context.Background()
 	session := newTestSession(t)
-	// "ls " — trailing space means we're completing a path argument
 	candidates := completeInput(ctx, session, "ls ")
 	found := false
 	for _, c := range candidates {
@@ -250,6 +280,147 @@ func TestCompletePathAfterCommand(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("expected 'anime' in path completions, got %v", candidates)
+	}
+}
+
+func TestCompletePathQuotesSpaces(t *testing.T) {
+	ctx := context.Background()
+	d := newCmdFakeDriver()
+	d.entries["9"] = cloudfs.Entry{ID: "9", ParentID: "0", Name: "my show", Type: cloudfs.EntryTypeDirectory}
+	d.children["0"] = append(d.children["0"], "9")
+	d.children["9"] = []string{}
+	session, _ := cloudfs.NewSession(ctx, d)
+
+	candidates := completePath(ctx, session, "my")
+	found := false
+	for _, c := range candidates {
+		if c == "'my show/'" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected quoted candidate \"'my show/'\", got %v", candidates)
+	}
+}
+
+func TestCompletePathEscapesQuotes(t *testing.T) {
+	ctx := context.Background()
+	d := newCmdFakeDriver()
+	d.entries["9"] = cloudfs.Entry{
+		ID:       "9",
+		ParentID: "0",
+		Name:     `Bob's "show"`,
+		Type:     cloudfs.EntryTypeDirectory,
+	}
+	d.children["0"] = append(d.children["0"], "9")
+	d.children["9"] = []string{}
+	session, _ := cloudfs.NewSession(ctx, d)
+
+	candidates := completePath(ctx, session, "Bob")
+	want := `Bob\'s\ \"show\"/`
+	found := false
+	for _, c := range candidates {
+		if c == want {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected escaped candidate %q, got %v", want, candidates)
+	}
+}
+
+func TestCompletePathUsesCachedDirectoryListing(t *testing.T) {
+	ctx := context.Background()
+	d := newCountingCmdFakeDriver()
+	session, err := cloudfs.NewSession(ctx, d)
+	if err != nil {
+		t.Fatalf("NewSession: %v", err)
+	}
+
+	first := completePath(ctx, session, "")
+	second := completePath(ctx, session, "")
+	if len(first) == 0 || len(second) == 0 {
+		t.Fatalf("expected non-empty completions, got %v and %v", first, second)
+	}
+	if got := d.listCalls["0"]; got != 1 {
+		t.Fatalf("expected root List to be called once, got %d", got)
+	}
+}
+
+func TestCompletePathReloadsAfterMkdir(t *testing.T) {
+	ctx := context.Background()
+	d := newCountingCmdFakeDriver()
+	session, err := cloudfs.NewSession(ctx, d)
+	if err != nil {
+		t.Fatalf("NewSession: %v", err)
+	}
+
+	_ = completePath(ctx, session, "")
+	if _, err := session.Mkdir(ctx, "/fresh"); err != nil {
+		t.Fatalf("Mkdir failed: %v", err)
+	}
+	candidates := completePath(ctx, session, "fr")
+	if got := d.listCalls["0"]; got != 2 {
+		t.Fatalf("expected root List to be called twice after cache invalidation, got %d", got)
+	}
+	found := false
+	for _, c := range candidates {
+		if c == "fresh/" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected fresh/ in completions, got %v", candidates)
+	}
+}
+
+func TestReadlineCompletionPrefix(t *testing.T) {
+	if got := readlineCompletionPrefix("ls an"); got != "an" {
+		t.Fatalf("expected prefix an, got %q", got)
+	}
+}
+
+func TestReadlineCompletionCandidates(t *testing.T) {
+	comps := readlineCompletionCandidates([]string{"ls", "list"}, "commands")
+	if len(comps) != 2 {
+		t.Fatalf("expected 2 completions, got %d", len(comps))
+	}
+	if comps[0].Value != "ls" || comps[0].Display != "ls" || comps[0].Tag != "commands" {
+		t.Fatalf("unexpected completion: %+v", comps[0])
+	}
+}
+
+func TestShellReadlineCompletionsQuotedPathCandidate(t *testing.T) {
+	ctx := context.Background()
+	d := newCmdFakeDriver()
+	d.entries["9"] = cloudfs.Entry{ID: "9", ParentID: "0", Name: "my show", Type: cloudfs.EntryTypeDirectory}
+	d.children["0"] = append(d.children["0"], "9")
+	d.children["9"] = []string{}
+	session, _ := cloudfs.NewSession(ctx, d)
+
+	comps := shellReadlineCompletions(ctx, session, "cd my", len("cd my"))
+	if comps.PREFIX != "my" {
+		t.Fatalf("expected prefix my, got %q", comps.PREFIX)
+	}
+
+	raw := readlineCompletionCandidates(completeInput(ctx, session, "cd my"), "paths")
+	if len(raw) != 1 || raw[0].Value != "'my show/'" {
+		t.Fatalf("expected quoted readline candidate, got %+v", raw)
+	}
+}
+
+func TestShellReadlineCompletionsEscapedQuoteCandidate(t *testing.T) {
+	ctx := context.Background()
+	d := newCmdFakeDriver()
+	d.entries["9"] = cloudfs.Entry{ID: "9", ParentID: "0", Name: `Bob's "show"`, Type: cloudfs.EntryTypeDirectory}
+	d.children["0"] = append(d.children["0"], "9")
+	d.children["9"] = []string{}
+	session, _ := cloudfs.NewSession(ctx, d)
+
+	raw := readlineCompletionCandidates(completeInput(ctx, session, "cd Bob"), "paths")
+	want := `Bob\'s\ \"show\"/`
+	if len(raw) != 1 || raw[0].Value != want {
+		t.Fatalf("expected escaped readline candidate %q, got %+v", want, raw)
 	}
 }
 
@@ -304,223 +475,97 @@ func TestShellRenameRejectsTooFewArgs(t *testing.T) {
 	}
 }
 
-// --- history command and !N recall ---
+// --- shell runtime helpers ---
 
-func TestShellHistoryCommand(t *testing.T) {
-	ctx := context.Background()
-	session := newTestSession(t)
-	h := &shellHistory{}
-	h.add("ls /")
-	h.add("cd /anime")
-	var buf bytes.Buffer
-	dispatchShellCommand(ctx, session, h, &buf, "history")
-	out := buf.String()
-	if !strings.Contains(out, "ls /") || !strings.Contains(out, "cd /anime") {
-		t.Fatalf("expected history entries in output, got %q", out)
+func TestRequireInteractiveTerminalRejectsRegularFile(t *testing.T) {
+	f, err := os.CreateTemp("", "not-tty")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	defer os.Remove(f.Name())
+
+	in, err := os.Open(f.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer in.Close()
+
+	err = requireInteractiveTerminal(in)
+	if !errors.Is(err, errNonInteractiveShell) {
+		t.Fatalf("expected non-interactive shell error, got %v", err)
 	}
 }
 
-func TestShellRecallHistory(t *testing.T) {
-	h := &shellHistory{}
-	h.add("ls /")
-	h.add("cd /anime")
-	var buf bytes.Buffer
-	line, ok := recallHistory(h, "1", &buf)
-	if !ok || line != "ls /" {
-		t.Fatalf("expected 'ls /', got %q (ok=%v)", line, ok)
+func TestFsShellRunRejectsNonInteractiveBeforeInitSession(t *testing.T) {
+	oldInit := initShellSession
+	defer func() {
+		initShellSession = oldInit
+	}()
+
+	called := false
+	initShellSession = func(ctx context.Context) *cloudfs.Session {
+		called = true
+		return nil
+	}
+
+	f, err := os.CreateTemp("", "not-tty")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(f.Name())
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	in, err := os.Open(f.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer in.Close()
+
+	oldStdin := os.Stdin
+	oldCwd := fsCwd
+	defer func() {
+		os.Stdin = oldStdin
+		fsCwd = oldCwd
+	}()
+	os.Stdin = in
+	fsCwd = ""
+
+	fsShellCmd.Run(fsShellCmd, nil)
+	if called {
+		t.Fatal("expected non-interactive shell to return before session init")
 	}
 }
 
-func TestShellRecallHistoryOutOfRange(t *testing.T) {
-	h := &shellHistory{}
-	h.add("ls /")
-	var buf bytes.Buffer
-	_, ok := recallHistory(h, "99", &buf)
-	if ok {
-		t.Fatal("expected failure for out-of-range index")
+func TestInitShellHistoryRebuildsLegacyFile(t *testing.T) {
+	f, err := os.CreateTemp("", "legacy-history-*.txt")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(buf.String(), "error") {
-		t.Fatalf("expected error message, got %q", buf.String())
-	}
-}
+	defer os.Remove(f.Name())
 
-// --- Tab completion suffix ---
-
-func TestCompleteSuffix(t *testing.T) {
-	// "ls an" → candidate "anime/" → suffix "ime/"
-	suffix := completeSuffix("ls an", "anime/")
-	if suffix != "ime/" {
-		t.Fatalf("expected 'ime/', got %q", suffix)
+	if _, err := f.WriteString("ls /\ncd /anime\n"); err != nil {
+		t.Fatal(err)
 	}
-}
-
-func TestCompleteSuffixNoMatch(t *testing.T) {
-	suffix := completeSuffix("ls xyz", "anime/")
-	if suffix != "" {
-		t.Fatalf("expected empty suffix, got %q", suffix)
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
 	}
-}
 
-// --- readLineWithCompletion via pipe ---
+	history, err := initShellHistory(f.Name())
+	if err != nil {
+		t.Fatalf("init history failed: %v", err)
+	}
+	if history == nil {
+		t.Fatal("expected readline history source")
+	}
 
-func TestReadLineWithCompletion_PlainInput(t *testing.T) {
-	ctx := context.Background()
-	session := newTestSession(t)
-	input := "ls /\n"
-	var out bytes.Buffer
-	line, eof := readLineWithCompletion(ctx, session, strings.NewReader(input), &out, &lineReadState{})
-	if eof {
-		t.Fatal("unexpected EOF")
+	data, err := os.ReadFile(f.Name())
+	if err != nil {
+		t.Fatal(err)
 	}
-	if line != "ls /" {
-		t.Fatalf("expected 'ls /', got %q", line)
-	}
-}
-
-func TestReadLineWithCompletion_EOF(t *testing.T) {
-	ctx := context.Background()
-	session := newTestSession(t)
-	var out bytes.Buffer
-	_, eof := readLineWithCompletion(ctx, session, strings.NewReader(""), &out, &lineReadState{})
-	if !eof {
-		t.Fatal("expected EOF on empty reader")
-	}
-}
-
-func TestReadLineWithCompletion_TabCompletion(t *testing.T) {
-	ctx := context.Background()
-	session := newTestSession(t)
-	// "ls an\t\n" — Tab after "an" should complete to "anime/"
-	input := "ls an\t\n"
-	var out bytes.Buffer
-	line, eof := readLineWithCompletion(ctx, session, strings.NewReader(input), &out, &lineReadState{})
-	if eof {
-		t.Fatal("unexpected EOF")
-	}
-	// The line buffer should contain the completed text.
-	if !strings.Contains(line, "anime") {
-		t.Fatalf("expected 'anime' in completed line, got %q", line)
-	}
-}
-
-// --- \r handling: no peek, no byte loss ---
-
-func TestReadLineWithCompletion_CRonly(t *testing.T) {
-	ctx := context.Background()
-	session := newTestSession(t)
-	// Raw-mode terminal sends only \r on Enter.
-	input := "pwd\r"
-	var out bytes.Buffer
-	line, eof := readLineWithCompletion(ctx, session, strings.NewReader(input), &out, &lineReadState{})
-	if eof {
-		t.Fatal("unexpected EOF for \\r-terminated line")
-	}
-	if line != "pwd" {
-		t.Fatalf("expected 'pwd', got %q", line)
-	}
-}
-
-func TestReadLineWithCompletion_CRLFDoesNotLoseNextByte(t *testing.T) {
-	ctx := context.Background()
-	session := newTestSession(t)
-	// Two lines: "pwd\r\nls\n". The \n after \r must not create an empty line
-	// or swallow the next command's first byte.
-	r := strings.NewReader("pwd\r\nls\n")
-	var out bytes.Buffer
-	state := &lineReadState{}
-	line1, eof1 := readLineWithCompletion(ctx, session, r, &out, state)
-	if eof1 || line1 != "pwd" {
-		t.Fatalf("first line: got %q eof=%v", line1, eof1)
-	}
-	line2, eof2 := readLineWithCompletion(ctx, session, r, &out, state)
-	if eof2 || line2 != "ls" {
-		t.Fatalf("second line: got %q eof=%v", line2, eof2)
-	}
-}
-
-// --- EOF with unterminated last line ---
-
-func TestRunShellLoop_EOFExecutesLastLine(t *testing.T) {
-	ctx := context.Background()
-	session := newTestSession(t)
-	history := &shellHistory{}
-	// "pwd" with no trailing newline — must still be executed.
-	input := strings.NewReader("pwd")
-	var out bytes.Buffer
-	runShellLoop(ctx, session, history, input, &out)
-	if !strings.Contains(out.String(), "/") {
-		t.Fatalf("expected pwd output, got %q", out.String())
-	}
-}
-
-// --- completion quoting ---
-
-func TestCompletePathQuotesSpaces(t *testing.T) {
-	ctx := context.Background()
-	d := newCmdFakeDriver()
-	// Add an entry with a space in the name.
-	d.entries["9"] = cloudfs.Entry{ID: "9", ParentID: "0", Name: "my show", Type: cloudfs.EntryTypeDirectory}
-	d.children["0"] = append(d.children["0"], "9")
-	d.children["9"] = []string{}
-	session, _ := cloudfs.NewSession(ctx, d)
-
-	candidates := completePath(ctx, session, "my")
-	found := false
-	for _, c := range candidates {
-		if c == "'my show/'" {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("expected quoted candidate \"'my show/'\", got %v", candidates)
-	}
-}
-
-func TestCompleteSuffix_QuotedCandidate(t *testing.T) {
-	// User typed "cd my", candidate is "'my show/'" — suffix replaces token.
-	suffix := completeSuffix("cd my", "'my show/'")
-	// Should signal full replacement.
-	if !strings.HasPrefix(suffix, "\x00") {
-		t.Fatalf("expected replacement signal, got %q", suffix)
-	}
-}
-
-func TestCompletePathEscapesQuotes(t *testing.T) {
-	ctx := context.Background()
-	d := newCmdFakeDriver()
-	d.entries["9"] = cloudfs.Entry{
-		ID:       "9",
-		ParentID: "0",
-		Name:     `Bob's "show"`,
-		Type:     cloudfs.EntryTypeDirectory,
-	}
-	d.children["0"] = append(d.children["0"], "9")
-	d.children["9"] = []string{}
-	session, _ := cloudfs.NewSession(ctx, d)
-
-	candidates := completePath(ctx, session, "Bob")
-	want := `Bob\'s\ \"show\"/`
-	found := false
-	for _, c := range candidates {
-		if c == want {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("expected escaped candidate %q, got %v", want, candidates)
-	}
-}
-
-func TestParseShellLine_BackslashEscapes(t *testing.T) {
-	tokens := parseShellLine(`cd Bob\'s\ \"show\"/`)
-	if len(tokens) != 2 || tokens[1] != `Bob's "show"/` {
-		t.Fatalf("unexpected tokens: %v", tokens)
-	}
-}
-
-func TestCompleteSuffix_UnquotedCandidate(t *testing.T) {
-	suffix := completeSuffix("ls an", "anime/")
-	if suffix != "ime/" {
-		t.Fatalf("expected 'ime/', got %q", suffix)
+	if strings.TrimSpace(string(data)) != "" {
+		t.Fatalf("expected legacy history to be truncated, got %q", string(data))
 	}
 }
