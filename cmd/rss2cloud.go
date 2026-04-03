@@ -12,16 +12,18 @@ import (
 )
 
 var (
-	pAgent       *p115.Agent
-	rssUrl       string
-	cookies      string
-	rssJsonPath  string
-	qrLogin      bool
-	disableCache bool
-	chunkDelay   int
-	chunkSize    int
-	clearTaskNum int
-	rootCmd      = &cobra.Command{
+	pAgent        *p115.Agent
+	rssUrl        string
+	cookies       string
+	rssJsonPath   string
+	qrLogin       bool
+	disableCache  bool
+	chunkDelay    int
+	chunkSize     int
+	cooldownMinMs int
+	cooldownMaxMs int
+	clearTaskNum  int
+	rootCmd       = &cobra.Command{
 		Use:   "rss2cloud",
 		Short: `Add offline tasks to 115`,
 		Run: func(_cmd *cobra.Command, _args []string) {
@@ -99,6 +101,8 @@ func init() {
 	rootCmd.Flags().BoolVar(&disableCache, "no-cache", false, "skip checking cache in db.sqlite")
 	rootCmd.Flags().IntVar(&chunkDelay, "chunk-delay", 0, "chunk delay. default 2")
 	rootCmd.Flags().IntVar(&chunkSize, "chunk-size", 0, "chunk size. default 200")
+	rootCmd.Flags().IntVar(&cooldownMinMs, "cooldown-min-ms", 0, "minimum cooldown between 115 API calls in milliseconds")
+	rootCmd.Flags().IntVar(&cooldownMaxMs, "cooldown-max-ms", 0, "maximum cooldown between 115 API calls in milliseconds")
 	rootCmd.Flags().IntVar(&clearTaskNum, "clear-task-type", 0, "clear offline task type: 1-6.\n 1: OfflineClearDone\n 2: OfflineClearAll\n 3: OfflineClearFailed\n 4: OfflineClearRunning\n 5: OfflineClearDoneAndDelete\n 6: OfflineClearAllAndDelete")
 	rootCmd.AddCommand(magnetCmd)
 	// server subcommand
@@ -107,7 +111,13 @@ func init() {
 }
 
 func initAgent() {
-	p115.SetOption(p115.Option{DisableCache: disableCache, ChunkDelay: chunkDelay, ChunkSize: chunkSize})
+	p115.SetOption(p115.Option{
+		DisableCache:  disableCache,
+		ChunkDelay:    chunkDelay,
+		ChunkSize:     chunkSize,
+		CooldownMinMs: cooldownMinMs,
+		CooldownMaxMs: cooldownMaxMs,
+	})
 	var err error
 	if cookies != "" {
 		pAgent, err = p115.NewAgent(cookies)

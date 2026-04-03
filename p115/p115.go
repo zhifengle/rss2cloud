@@ -18,20 +18,40 @@ import (
 var disableCache = false
 var defaultChunkSize = 200
 var chunkDelay = 2
+var cooldownMinMs uint
+var cooldownMaxMs uint
 
 type Option struct {
-	DisableCache bool
-	ChunkDelay   int
-	ChunkSize    int
+	DisableCache  bool
+	ChunkDelay    int
+	ChunkSize     int
+	CooldownMinMs int
+	CooldownMaxMs int
 }
 
 func SetOption(opt Option) {
 	disableCache = opt.DisableCache
+	chunkDelay = 2
 	if opt.ChunkDelay > 0 {
 		chunkDelay = opt.ChunkDelay
 	}
+	defaultChunkSize = 200
 	if opt.ChunkSize > 0 {
 		defaultChunkSize = opt.ChunkSize
+	}
+	cooldownMinMs = 0
+	cooldownMaxMs = 0
+	if opt.CooldownMinMs > 0 {
+		cooldownMinMs = uint(opt.CooldownMinMs)
+	}
+	if opt.CooldownMaxMs > 0 {
+		cooldownMaxMs = uint(opt.CooldownMaxMs)
+	}
+	if cooldownMinMs > 0 && cooldownMaxMs == 0 {
+		cooldownMaxMs = cooldownMinMs
+	}
+	if cooldownMaxMs > 0 && cooldownMaxMs < cooldownMinMs {
+		cooldownMaxMs = cooldownMinMs
 	}
 }
 
@@ -101,7 +121,7 @@ func NewAgentByConfig() (*Agent, error) {
 }
 
 func NewAgent(cookies string) (*Agent, error) {
-	agent := elevengo.Default()
+	agent := newElevengoAgent()
 	cookiesMap := parseCookies(cookies)
 	err := agent.CredentialImport(&elevengo.Credential{
 		UID: cookiesMap["UID"], CID: cookiesMap["CID"], SEID: cookiesMap["SEID"],
@@ -227,7 +247,7 @@ func LoadCookies() string {
 }
 
 func QrcodeLogin() (*Agent, error) {
-	agent := elevengo.Default()
+	agent := newElevengoAgent()
 	session := &elevengo.QrcodeSession{}
 	// @TODO: add option; default is tv
 	err := agent.QrcodeStart(session, option.Qrcode().LoginTv())
@@ -258,4 +278,20 @@ func QrcodeLogin() (*Agent, error) {
 			return nil, errors.New("login timed out")
 		}
 	}
+}
+
+func newElevengoAgent() *elevengo.Agent {
+	opts := option.Agent()
+	if cooldownMinMs > 0 || cooldownMaxMs > 0 {
+		minMs := cooldownMinMs
+		maxMs := cooldownMaxMs
+		if maxMs == 0 {
+			maxMs = minMs
+		}
+		if maxMs < minMs {
+			maxMs = minMs
+		}
+		opts.WithCooldown(minMs, maxMs)
+	}
+	return elevengo.New(opts)
 }
