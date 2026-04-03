@@ -30,24 +30,17 @@ func toEntryJSON(e cloudfs.Entry) entryJSON {
 }
 
 // printEntry prints a single entry in the active output format.
+// For shell output, use fprintEntry(out, e) directly.
 func printEntry(e cloudfs.Entry) {
 	if fsJSON {
 		printJSON(toEntryJSON(e))
 		return
 	}
-	fmt.Printf("id:        %s\n", e.ID)
-	if e.ParentID != "" {
-		fmt.Printf("parent_id: %s\n", e.ParentID)
-	}
-	fmt.Printf("name:      %s\n", e.Name)
-	fmt.Printf("type:      %s\n", e.Type)
-	fmt.Printf("size:      %d\n", e.Size)
-	if e.PickCode != "" {
-		fmt.Printf("pick_code: %s\n", e.PickCode)
-	}
+	fprintEntry(os.Stdout, e)
 }
 
 // printEntries prints a slice of entries.
+// For shell output, use fprintEntries(out, entries) directly.
 func printEntries(entries []cloudfs.Entry) {
 	if fsJSON {
 		out := make([]entryJSON, len(entries))
@@ -57,13 +50,7 @@ func printEntries(entries []cloudfs.Entry) {
 		printJSON(out)
 		return
 	}
-	for _, e := range entries {
-		typeChar := "-"
-		if e.IsDir() {
-			typeChar = "d"
-		}
-		fmt.Printf("%s  %-12s  %s\n", typeChar, e.ID, e.Name)
-	}
+	fprintEntries(os.Stdout, entries)
 }
 
 // printJSON marshals v to stdout as indented JSON.

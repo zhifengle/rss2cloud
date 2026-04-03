@@ -1,8 +1,6 @@
 module github.com/zhifengle/rss2cloud
 
-go 1.23
-
-toolchain go1.23.2
+go 1.25.0
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
@@ -24,7 +22,8 @@ require (
 	github.com/smartystreets/goconvey v1.7.2 // indirect
 	golang.org/x/arch v0.11.0 // indirect
 	golang.org/x/net v0.20.0 // indirect
-	golang.org/x/sys v0.26.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/term v0.41.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 )
 
