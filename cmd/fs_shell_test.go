@@ -569,3 +569,55 @@ func TestInitShellHistoryRebuildsLegacyFile(t *testing.T) {
 		t.Fatalf("expected legacy history to be truncated, got %q", string(data))
 	}
 }
+
+func TestPrintShellOutputAddsSingleTrailingNewline(t *testing.T) {
+	var buf bytes.Buffer
+	if err := printShellOutput(&buf, "line one\nline two\n"); err != nil {
+		t.Fatalf("printShellOutput failed: %v", err)
+	}
+
+	want := "line one\nline two\n"
+	if isWindowsRuntime() {
+		want = "line one\r\nline two\r\n"
+	}
+	if got := buf.String(); got != want {
+		t.Fatalf("unexpected output: got %q want %q", got, want)
+	}
+}
+
+func TestPrintShellOutputSkipsEmptyContent(t *testing.T) {
+	var buf bytes.Buffer
+	if err := printShellOutput(&buf, "\n\r\n"); err != nil {
+		t.Fatalf("printShellOutput failed: %v", err)
+	}
+
+	want := "\n"
+	if isWindowsRuntime() {
+		want = "\r\n"
+	}
+	if got := buf.String(); got != want {
+		t.Fatalf("expected newline-only output, got %q want %q", got, want)
+	}
+}
+
+func TestPrepareShellPrompt(t *testing.T) {
+	var buf bytes.Buffer
+	ctx := context.Background()
+	session := newTestSession(t)
+	if _, err := session.Cd(ctx, "/anime"); err != nil {
+		t.Fatalf("Cd failed: %v", err)
+	}
+
+	if err := printShellPrompt(&buf, session); err != nil {
+		t.Fatalf("printShellPrompt failed: %v", err)
+	}
+
+	want := "fake:/anime> "
+	if got := buf.String(); got != want {
+		t.Fatalf("unexpected prompt prep output: got %q want %q", got, want)
+	}
+}
+
+func isWindowsRuntime() bool {
+	return os.PathSeparator == '\\'
+}

@@ -46,7 +46,10 @@ Use --list-cache-ttl on the parent fs command to tune freshness, for example:
 			}
 		}
 
-		fmt.Fprintf(os.Stdout, "%s shell - type 'help' for commands, 'exit' to quit\n", session.Provider())
+		if err := printShellOutput(os.Stdout, fmt.Sprintf("%s shell - type 'help' for commands, 'exit' to quit", session.Provider())); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			return
+		}
 
 		if err := runShellLoop(ctx, session, os.Stdout, fsHistoryFile); err != nil {
 			if !errors.Is(err, errNonInteractiveShell) {

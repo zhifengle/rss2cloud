@@ -1,10 +1,14 @@
 package cmd
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"runtime"
 	"strings"
 
 	"github.com/reeflective/readline"
@@ -35,6 +39,14 @@ const shellHelp = `Available commands:
 Line editing, history navigation, and search are provided by reeflective/readline.`
 
 func runShellLoop(ctx context.Context, session *cloudfs.Session, out io.Writer, historyFile string) error {
+	if runtime.GOOS == "windows" {
+		return runBasicShellLoop(ctx, session, out, historyFile)
+	}
+
+	return runReadlineShellLoop(ctx, session, out, historyFile)
+}
+
+func runReadlineShellLoop(ctx context.Context, session *cloudfs.Session, out io.Writer, historyFile string) error {
 	rl, err := newShellReadline(ctx, session, historyFile)
 	if err != nil {
 		return err
@@ -59,7 +71,59 @@ func runShellLoop(ctx context.Context, session *cloudfs.Session, out io.Writer, 
 			continue
 		}
 
-		if done := dispatchShellCommand(ctx, session, out, line); done {
+		var buf bytes.Buffer
+		done := dispatchShellCommand(ctx, session, &buf, line)
+		if err := printShellOutput(out, buf.String()); err != nil {
+			return err
+		}
+		if done {
+			return nil
+		}
+	}
+}
+
+func runBasicShellLoop(ctx context.Context, session *cloudfs.Session, out io.Writer, historyFile string) error {
+	history, err := initShellHistory(historyFile)
+	if err != nil {
+		return err
+	}
+
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		if err := printShellPrompt(out, session); err != nil {
+			return err
+		}
+
+		line, readErr := reader.ReadString('\n')
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			return readErr
+		}
+		if errors.Is(readErr, io.EOF) && line == "" {
+			if err := printShellOutput(out, ""); err != nil {
+				return err
+			}
+			return nil
+		}
+
+		line = strings.TrimRight(line, "\r\n")
+		line = strings.TrimSpace(line)
+		if line == "" {
+			if errors.Is(readErr, io.EOF) {
+				return nil
+			}
+			continue
+		}
+
+		if history != nil {
+			_, _ = history.Write(line)
+		}
+
+		var buf bytes.Buffer
+		done := dispatchShellCommand(ctx, session, &buf, line)
+		if err := printShellOutput(out, buf.String()); err != nil {
+			return err
+		}
+		if done || errors.Is(readErr, io.EOF) {
 			return nil
 		}
 	}
@@ -82,6 +146,40 @@ func newShellReadline(ctx context.Context, session *cloudfs.Session, historyFile
 	}
 
 	return rl, nil
+}
+
+func printShellOutput(out io.Writer, msg string) error {
+	msg = strings.TrimRight(msg, "\r\n")
+	if msg == "" {
+		if runtime.GOOS == "windows" {
+			_, err := io.WriteString(out, "\r\n")
+			return err
+		}
+		_, err := io.WriteString(out, "\n")
+		return err
+	}
+
+	if runtime.GOOS == "windows" {
+		msg = strings.ReplaceAll(msg, "\r\n", "\n")
+		msg = strings.ReplaceAll(msg, "\n", "\r\n")
+	}
+
+	if _, err := io.WriteString(out, msg); err != nil {
+		return err
+	}
+	if runtime.GOOS == "windows" {
+		_, err := io.WriteString(out, "\r\n")
+		return err
+	}
+	if _, err := io.WriteString(out, "\n"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func printShellPrompt(out io.Writer, session *cloudfs.Session) error {
+	_, err := io.WriteString(out, fmt.Sprintf("%s:%s> ", session.Provider(), session.Pwd()))
+	return err
 }
 
 // dispatchShellCommand parses and executes one shell line.
