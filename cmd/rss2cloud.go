@@ -48,6 +48,7 @@ var (
 	// magnet link
 	linkUrl   string
 	cid       string
+	savepath  string
 	textFile  string
 	magnetCmd = &cobra.Command{
 		Use:   "magnet",
@@ -67,7 +68,7 @@ var (
 			if len(magnets) == 0 {
 				log.Fatalln("magnets is empty")
 			}
-			pAgent.AddMagnetTask(magnets, cid)
+			pAgent.AddMagnetTask(magnets, cid, savepath)
 		},
 	}
 	// server subcommand
@@ -97,6 +98,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&qrLogin, "qrcode", "q", false, "login 115 by qrcode")
 	magnetCmd.Flags().StringVarP(&linkUrl, "link", "l", "", "magnet link")
 	magnetCmd.Flags().StringVar(&cid, "cid", "", "cid")
+	magnetCmd.Flags().StringVar(&savepath, "savepath", "", "save path")
 	magnetCmd.Flags().StringVar(&textFile, "text", "", "text file")
 	rootCmd.PersistentFlags().BoolVar(&disableCache, "no-cache", false, "skip checking cache in db.sqlite")
 	rootCmd.PersistentFlags().IntVar(&chunkDelay, "chunk-delay", 0, "chunk delay. default 2")

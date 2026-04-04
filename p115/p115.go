@@ -167,7 +167,7 @@ func (ag *Agent) addCloudTasks(magnetItems []rsssite.MagnetItem, config *rsssite
 		for _, item := range items {
 			urls = append(urls, item.Magnet)
 		}
-		_, err := ag.Agent.OfflineAddUrl(urls, &option.OfflineAddOptions{SaveDirId: config.Cid})
+		_, err := ag.Agent.OfflineAddUrl(urls, &option.OfflineAddOptions{SaveDirId: config.Cid, SavePath: config.SavePath})
 		if err != nil {
 			log.Printf("Add offline error: %s\n", err)
 			return
@@ -209,9 +209,9 @@ func (ag *Agent) ExecuteAllRssTask() {
 	}
 }
 
-func (ag *Agent) AddMagnetTask(magnets []string, cid string) {
+func (ag *Agent) AddMagnetTask(magnets []string, cid string, savepath string) {
 	for i, urls := range chunkBy(magnets, defaultChunkSize) {
-		_, err := ag.Agent.OfflineAddUrl(urls, &option.OfflineAddOptions{SaveDirId: cid})
+		_, err := ag.Agent.OfflineAddUrl(urls, &option.OfflineAddOptions{SaveDirId: cid, SavePath: savepath})
 		if err != nil {
 			log.Printf("Add offline error: %s\n", err)
 			return

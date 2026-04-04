@@ -6,7 +6,7 @@
 
 ## 关于
 
-基于 [deadblue/elevengo](https://github.com/deadblue/elevengo)
+基于 [Nahuimi/elevengo](https://github.com/Nahuimi/elevengo)
 
 支持 RSS 源: nyaa, dmhy, mikanni, share.acgnx.net
 
@@ -50,9 +50,11 @@ rss2cloud --clear-task-type 1
 
 # 查看 magnet 子命令帮助
 rss2cloud magnet -h
-rss2cloud magnet --link "magnet:?xt=urn:btih:12345" --cid "12345"
+rss2cloud magnet --link "magnet:?xt=urn:btih:12345" --cid "12345" --savepath "文件夹名称"
 # 离线包含 magnet 的 txt 文件; 按行分割
-rss2cloud magnet --txt magnet.txt --cid "12345"
+rss2cloud magnet --txt magnet.txt --cid "12345" --savepath "文件夹名称"
+# savepath 支持多级路径
+rss2cloud magnet --link "magnet:?xt=urn:btih:12345" --cid "12345" --savepath "文件夹名称/子文件夹名称"
 ```
 
 ### 文件管理命令
@@ -141,7 +143,7 @@ rss2cloud server -h
 # 运行服务
 rss2cloud server
 # 添加任务
-curl -d '{"tasks": ["magnet:?xt=urn:btih:xx"], "cid":"12345"}' -X POST http://localhost:8115/add
+curl -d '{"tasks": ["magnet:?xt=urn:btih:xx"], "cid":"12345", "savepath":"文件夹名称"}' -X POST http://localhost:8115/add
 ```
 
 POST `http://localhost:8115/add`
@@ -151,7 +153,8 @@ body 示例：
 ```json
 {
   "tasks": ["magnet:?xt=urn:btih:xxx"],
-  "cid": "12345"
+  "cid": "12345",
+  "savepath": "文件夹名称/子文件夹名称"
 }
 ```
 
@@ -173,6 +176,7 @@ body 示例：
     {
       "name": "VCB-Studio",
       "cid": "2479224057885794455",
+      "savepath": "文件夹名称",
       "url": "https://nyaa.si/?page=rss&u=VCB-Studio"
     }
   ],
@@ -180,6 +184,7 @@ body 示例：
     {
       "name": "name",
       "cid": "2479224057885794455",
+      "savepath": "文件夹名称",
       "url": "https://sukebei.nyaa.si/?page=rss"
     }
   ],
@@ -188,6 +193,7 @@ body 示例：
       "name": "水星的魔女",
       "filter": "简日双语",
       "cid": "2479224057885794455",
+      "savepath": "文件夹名称",
       "url": "https://share.dmhy.org/topics/rss/rss.xml?keyword=%E6%B0%B4%E6%98%9F%E7%9A%84%E9%AD%94%E5%A5%B3&sort_id=2&team_id=0&order=date-desc"
     }
   ]
@@ -200,7 +206,11 @@ body 示例：
 
 `/简体|\\d{3-4}[pP]/` 使用斜线包裹的正则规则。注意转义规则
 
-cid 是离线到指定的文件夹的 id 。
+cid 是离线到指定的文件夹 id。
+
+savepath 是可选项，用于指定离线任务的保存路径名称；不设置时保持 115 默认行为。
+
+savepath 支持路径形式，例如 `文件夹名称/文件夹名称`。
 
 获取方法: 浏览器打开 115 的文件，地址栏像 `https://115.com/?cid=2479224057885794455&offset=0&tab=&mode=wangpan`
 

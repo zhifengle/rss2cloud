@@ -19,8 +19,9 @@ type Server struct {
 }
 
 type OfflineTask struct {
-	Tasks []string `json:"tasks"`
-	Cid   string   `json:"cid"`
+	Tasks    []string `json:"tasks"`
+	Cid      string   `json:"cid"`
+	SavePath string   `json:"savepath,omitempty"`
 }
 
 var mux = http.NewServeMux()
@@ -73,7 +74,7 @@ func (s *Server) handleAddTask(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	s.Agent.AddMagnetTask(task.Tasks, task.Cid)
+	s.Agent.AddMagnetTask(task.Tasks, task.Cid, task.SavePath)
 
 	// Send a response back
 	w.WriteHeader(http.StatusOK)

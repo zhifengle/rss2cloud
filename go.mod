@@ -5,7 +5,9 @@ go 1.25.0
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/bytedance/mockey v1.4.5
+	github.com/reeflective/readline v1.1.4
 	github.com/spf13/cobra v1.8.0
+	golang.org/x/term v0.41.0
 )
 
 require (
@@ -18,14 +20,12 @@ require (
 	github.com/mmcdole/goxpp v1.1.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
-	github.com/reeflective/readline v1.1.4 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/smartystreets/assertions v1.2.0 // indirect
 	github.com/smartystreets/goconvey v1.7.2 // indirect
 	golang.org/x/arch v0.11.0 // indirect
 	golang.org/x/net v0.20.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
-	golang.org/x/term v0.41.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 )
 
@@ -37,3 +37,5 @@ require (
 	github.com/mmcdole/gofeed v1.2.1
 	github.com/spf13/pflag v1.0.5 // indirect
 )
+
+replace github.com/deadblue/elevengo => github.com/Nahuimi/elevengo v0.0.0-20260321033752-c4aee517fc16
