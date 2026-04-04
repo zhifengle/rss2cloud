@@ -357,27 +357,3 @@ func shellError(out io.Writer, err error) {
 	fmt.Fprintf(out, "error: %v\n", err)
 }
 
-// fprintEntry writes a single entry to out (shared with one-shot commands).
-func fprintEntry(out io.Writer, e cloudfs.Entry) {
-	fmt.Fprintf(out, "id:        %s\n", e.ID)
-	if e.ParentID != "" {
-		fmt.Fprintf(out, "parent_id: %s\n", e.ParentID)
-	}
-	fmt.Fprintf(out, "name:      %s\n", e.Name)
-	fmt.Fprintf(out, "type:      %s\n", e.Type)
-	fmt.Fprintf(out, "size:      %d\n", e.Size)
-	if e.PickCode != "" {
-		fmt.Fprintf(out, "pick_code: %s\n", e.PickCode)
-	}
-}
-
-// fprintEntries writes a list of entries to out.
-func fprintEntries(out io.Writer, entries []cloudfs.Entry) {
-	for _, e := range entries {
-		typeChar := "-"
-		if e.IsDir() {
-			typeChar = "d"
-		}
-		fmt.Fprintf(out, "%s  %-12s  %s\n", typeChar, e.ID, e.Name)
-	}
-}
