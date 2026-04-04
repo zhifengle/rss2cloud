@@ -44,8 +44,16 @@ func (d *minimalDriver) Rename(_ context.Context, _, _ string) (Entry, error) {
 func (d *minimalDriver) Move(_ context.Context, _, _ string) (Entry, error) {
 	return Entry{ID: "1"}, nil
 }
-func (d *minimalDriver) Copy(_ context.Context, _, _ string) error  { return nil }
-func (d *minimalDriver) Delete(_ context.Context, _ string) error   { return nil }
+func (d *minimalDriver) Copy(_ context.Context, _, _ string) error { return nil }
+func (d *minimalDriver) Delete(_ context.Context, _ string) error  { return nil }
+
+type searchableMinimalDriver struct {
+	*minimalDriver
+}
+
+func (d *searchableMinimalDriver) Search(_ context.Context, _, _ string, _ SearchOptions) ([]Entry, error) {
+	return []Entry{{ID: "search-result", Name: "episode.mkv", Type: EntryTypeFile}}, nil
+}
 
 func TestRateLimitedDriverCallsLimiter(t *testing.T) {
 	ctx := context.Background()
@@ -96,5 +104,23 @@ func TestNewRateLimitedDriverNilPassthrough(t *testing.T) {
 	d := NewRateLimitedDriver(inner, nil)
 	if d != Driver(inner) {
 		t.Fatal("expected inner driver returned when limiter is nil")
+	}
+}
+
+func TestNewRateLimitedDriverPreservesSearcher(t *testing.T) {
+	inner := &searchableMinimalDriver{minimalDriver: &minimalDriver{provider: "x"}}
+	d := NewRateLimitedDriver(inner, &countingLimiter{})
+
+	searcher, ok := d.(Searcher)
+	if !ok {
+		t.Fatal("expected wrapped driver to keep Searcher support")
+	}
+
+	results, err := searcher.Search(context.Background(), "0", "episode", SearchOptions{})
+	if err != nil {
+		t.Fatalf("Search failed: %v", err)
+	}
+	if len(results) != 1 || results[0].ID != "search-result" {
+		t.Fatalf("unexpected search results: %+v", results)
 	}
 }

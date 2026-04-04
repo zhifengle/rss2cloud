@@ -500,6 +500,38 @@ func TestFlattenDryRunDoesNotPlanRemovalForOriginallyEmptyDirs(t *testing.T) {
 	}
 }
 
+func TestFlattenRemovesEmptiedAncestorDirectories(t *testing.T) {
+	ctx := context.Background()
+	d := newFakeDriver()
+	delete(d.entries, "4")
+	d.children["1"] = removeID(d.children["1"], "4")
+	d.entries["6"] = Entry{ID: "6", ParentID: "1", Name: "nested", Type: EntryTypeDirectory}
+	d.entries["7"] = Entry{ID: "7", ParentID: "6", Name: "deep", Type: EntryTypeDirectory}
+	d.entries["8"] = Entry{ID: "8", ParentID: "7", Name: "episode-03.mkv", Type: EntryTypeFile}
+	d.children["1"] = append(d.children["1"], "6")
+	d.children["6"] = []string{"7"}
+	d.children["7"] = []string{"8"}
+
+	s, _ := NewSession(ctx, d)
+	result, err := s.Flatten(ctx, "/anime", FlattenOptions{})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	removed := map[string]bool{}
+	for _, dir := range result.RemovedDirs {
+		removed[dir.ID] = true
+	}
+	if !removed["6"] || !removed["7"] {
+		t.Fatalf("expected emptied ancestor directories to be removed, got %+v", result.RemovedDirs)
+	}
+	if _, _, err := s.Resolve(ctx, "/anime/nested"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected emptied ancestor directory to be removed, got %v", err)
+	}
+	if moved, statErr := s.Stat(ctx, "/anime/episode-03.mkv"); statErr != nil || moved.ParentID != "1" {
+		t.Fatalf("expected file moved into target dir, got entry=%+v err=%v", moved, statErr)
+	}
+}
+
 func TestRmSerialStopsOnError(t *testing.T) {
 	ctx := context.Background()
 	s, _ := NewSession(ctx, newFakeDriver())

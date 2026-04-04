@@ -83,14 +83,32 @@ type RateLimitedDriver struct {
 	limiter Limiter
 }
 
+type rateLimitedSearcher struct {
+	*RateLimitedDriver
+	searcher Searcher
+}
+
 func NewRateLimitedDriver(next Driver, limiter Limiter) Driver {
 	if next == nil || limiter == nil {
 		return next
 	}
-	return &RateLimitedDriver{
+	wrapped := &RateLimitedDriver{
 		next:    next,
 		limiter: limiter,
 	}
+	if searcher, ok := next.(Searcher); ok {
+		return &rateLimitedSearcher{
+			RateLimitedDriver: wrapped,
+			searcher:          searcher,
+		}
+	}
+	return wrapped
+}
+
+func (d *rateLimitedSearcher) Search(ctx context.Context, dirID, keyword string, opts SearchOptions) ([]Entry, error) {
+	return withLimit(ctx, d.limiter, func() ([]Entry, error) {
+		return d.searcher.Search(ctx, dirID, keyword, opts)
+	})
 }
 
 func (d *RateLimitedDriver) Provider() string {
