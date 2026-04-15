@@ -99,7 +99,7 @@ func GetMagnetByEnclosure(item *gofeed.Item) string {
 	// find enclosure by type == "application/x-bittorrent" or url has prefix magnet:?
 	for _, enclosure := range item.Enclosures {
 		if enclosure.Type == "application/x-bittorrent" || strings.HasPrefix(enclosure.URL, "magnet:?") {
-			lst := strings.Split(item.Enclosures[0].URL, "&dn=")
+			lst := strings.Split(enclosure.URL, "&dn=")
 			if len(lst) != 2 {
 				return enclosure.URL
 			}

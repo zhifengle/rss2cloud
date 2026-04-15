@@ -231,7 +231,7 @@ func SaveCookies(agent *elevengo.Agent) {
 	cr := &elevengo.Credential{}
 	agent.CredentialExport(cr)
 	cookies := fmt.Sprintf("UID=%s; CID=%s; SEID=%s; KID=%s", cr.UID, cr.CID, cr.SEID, cr.KID)
-	os.WriteFile(".cookies", []byte(cookies), 0644)
+	os.WriteFile(".cookies", []byte(cookies), 0600)
 }
 
 func LoadCookies() string {
