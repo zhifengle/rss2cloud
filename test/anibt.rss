@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Anibt Latest Releases</title>
+    <link>https://anibt.net/magnets</link>
+    <description>Latest releases across the site</description>
+    <item>
+      <title>Anibt sample release</title>
+      <link>https://anibt.net/release/rel_gJyVW1vVScb7</link>
+      <guid isPermaLink="false">rel_gJyVW1vVScb7</guid>
+      <description>Sample item with both magneturi and torrent enclosure.</description>
+      <torrent xmlns="https://anibt.moe/xmlns/0.1/">
+        <magneturi>magnet:?xt=urn:btih:8b8c2f0a461a212b0b7417289376ff243284edc6&amp;dn=sample.mp4&amp;xl=328994689&amp;tr=https%3A%2F%2Ftracker1.anibt.net%2Fannounce</magneturi>
+      </torrent>
+      <enclosure url="https://anibt.net/api/torrent/rel_gJyVW1vVScb7.torrent" length="328994689" type="application/x-bittorrent" />
+    </item>
+  </channel>
+</rss>

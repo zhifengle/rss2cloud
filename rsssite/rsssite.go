@@ -41,6 +41,8 @@ func getSite(url string) MagnetSite {
 		return &Acgnx{}
 	case "rsshub.app":
 		return &Rsshub{}
+	case "anibt.net":
+		return &Anibt{}
 	default:
 		log.Printf("[error] not support site: [%s]. rss URL: %s\n", name, url)
 		return nil

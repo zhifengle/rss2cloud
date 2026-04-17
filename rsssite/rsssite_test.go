@@ -1,6 +1,8 @@
 package rsssite
 
 import (
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/mmcdole/gofeed"
@@ -22,6 +24,36 @@ func TestAcgnx(t *testing.T) {
 	feed, _ := fp.ParseURL("https://share.acgnx.net/rss.xml")
 	for _, item := range feed.Items[:1] {
 		t.Log(acgnx.GetMagnetItem(item))
+	}
+}
+
+func TestAnibt(t *testing.T) {
+	anibt := &Anibt{}
+	data, err := os.ReadFile("../test/anibt.rss")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fp := gofeed.NewParser()
+	feed, err := fp.ParseString(string(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(feed.Items) == 0 {
+		t.Fatal("expected at least one anibt item")
+	}
+
+	got := anibt.GetMagnet(feed.Items[0])
+	want := "magnet:?xt=urn:btih:8b8c2f0a461a212b0b7417289376ff243284edc6"
+	if got != want {
+		t.Fatalf("expected first magnet %q, got %q", want, got)
+	}
+
+	for _, item := range feed.Items {
+		magnet := anibt.GetMagnet(item)
+		if !strings.HasPrefix(magnet, "magnet:?xt=urn:btih:") {
+			t.Fatalf("expected magnet URI for %q, got %q", item.Title, magnet)
+		}
 	}
 }
 
