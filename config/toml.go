@@ -13,12 +13,13 @@ import (
 
 // TOMLConfig represents the structure of config.toml
 type TOMLConfig struct {
-	Auth   TOMLAuthConfig            `toml:"auth"`
-	Server TOMLServerConfig          `toml:"server"`
-	P115   TOMLP115Config            `toml:"p115"`
-	Proxy  TOMLProxyConfig           `toml:"proxy"`
-	RSS    []TOMLRSSConfig           `toml:"rss"`
-	Sites  map[string]TOMLSiteConfig `toml:"sites"`
+	Auth     TOMLAuthConfig            `toml:"auth"`
+	Server   TOMLServerConfig          `toml:"server"`
+	Database TOMLDatabaseConfig        `toml:"database"`
+	P115     TOMLP115Config            `toml:"p115"`
+	Proxy    TOMLProxyConfig           `toml:"proxy"`
+	RSS      []TOMLRSSConfig           `toml:"rss"`
+	Sites    map[string]TOMLSiteConfig `toml:"sites"`
 }
 
 // TOMLAuthConfig represents authentication configuration
@@ -30,6 +31,11 @@ type TOMLAuthConfig struct {
 // TOMLServerConfig represents server configuration
 type TOMLServerConfig struct {
 	Port int `toml:"port"` // Valid range: 1-65535
+}
+
+// TOMLDatabaseConfig represents database configuration
+type TOMLDatabaseConfig struct {
+	Path string `toml:"path"` // SQLite database file path
 }
 
 // TOMLP115Config represents 115 cloud storage configuration
@@ -194,4 +200,23 @@ func ResolveCookiesFile(cookiesFile string, tomlPath string) string {
 	}
 
 	return cookiesFile
+}
+
+// ResolveDatabasePath resolves database path relative to config.toml directory
+// If the path is absolute, it is returned as-is
+// If the path is relative, it is resolved relative to the directory containing config.toml
+func ResolveDatabasePath(dbPath string, tomlPath string) string {
+	if dbPath == "" {
+		return ""
+	}
+
+	if filepath.IsAbs(dbPath) {
+		return dbPath
+	}
+
+	if tomlPath != "" {
+		return filepath.Join(filepath.Dir(tomlPath), dbPath)
+	}
+
+	return dbPath
 }

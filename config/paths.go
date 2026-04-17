@@ -37,7 +37,12 @@ func findFile(filename string, includeLegacyHome bool) (string, bool) {
 	for _, candidate := range candidatePaths(filename, includeLegacyHome) {
 		info, err := os.Stat(candidate)
 		if err == nil && !info.IsDir() {
-			return candidate, true
+			// Return absolute path for proper resolution
+			absPath, err := filepath.Abs(candidate)
+			if err != nil {
+				return candidate, true
+			}
+			return absPath, true
 		}
 	}
 	return "", false

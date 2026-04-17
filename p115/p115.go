@@ -21,6 +21,7 @@ var defaultChunkSize = 200
 var chunkDelay = 2
 var cooldownMinMs uint
 var cooldownMaxMs uint
+var databasePath = "db.sqlite"
 
 type Option struct {
 	DisableCache  bool
@@ -28,6 +29,7 @@ type Option struct {
 	ChunkSize     int
 	CooldownMinMs int
 	CooldownMaxMs int
+	DatabasePath  string
 }
 
 func SetOption(opt Option) {
@@ -53,6 +55,9 @@ func SetOption(opt Option) {
 	}
 	if cooldownMaxMs > 0 && cooldownMaxMs < cooldownMinMs {
 		cooldownMaxMs = cooldownMinMs
+	}
+	if opt.DatabasePath != "" {
+		databasePath = opt.DatabasePath
 	}
 }
 
@@ -137,9 +142,13 @@ func NewAgent(cookies string) (*Agent, error) {
 	if err != nil {
 		return nil, err
 	}
+	storeInstance, err := store.NewWithPath(databasePath)
+	if err != nil {
+		return nil, err
+	}
 	return &Agent{
 		Agent:         agent,
-		StoreInstance: store.New(nil),
+		StoreInstance: storeInstance,
 	}, nil
 }
 
@@ -308,9 +317,13 @@ func QrcodeLogin() (*Agent, error) {
 			SaveCookies(agent)
 			DisposeQrcode()
 
+			storeInstance, err := store.NewWithPath(databasePath)
+			if err != nil {
+				return nil, err
+			}
 			return &Agent{
 				Agent:         agent,
-				StoreInstance: store.New(nil),
+				StoreInstance: storeInstance,
 			}, nil
 		}
 		if err != nil && err == elevengo.ErrQrcodeCancelled {

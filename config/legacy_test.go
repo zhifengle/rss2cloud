@@ -237,8 +237,8 @@ func TestLoadLegacyCookies_FileExists(t *testing.T) {
 		t.Errorf("cookies = %q, want %q", cookies, cookieContent)
 	}
 
-	// Path should be the cleaned path to .cookies in current directory
-	expectedPath := filepath.Clean(".cookies")
+	// Path should be the absolute path to .cookies in current directory
+	expectedPath, _ := filepath.Abs(".cookies")
 	if path != expectedPath {
 		t.Errorf("path = %q, want %q", path, expectedPath)
 	}

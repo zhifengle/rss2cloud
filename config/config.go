@@ -32,12 +32,13 @@ type P115Option struct {
 
 // Config represents the unified configuration
 type Config struct {
-	Auth   AuthConfig
-	Server ServerConfig
-	P115   P115Config
-	Proxy  ProxyConfig
-	RSS    map[string][]RssConfig // Keyed by site host
-	Sites  map[string]SiteConfig  // Keyed by site host
+	Auth     AuthConfig
+	Server   ServerConfig
+	Database DatabaseConfig
+	P115     P115Config
+	Proxy    ProxyConfig
+	RSS      map[string][]RssConfig // Keyed by site host
+	Sites    map[string]SiteConfig  // Keyed by site host
 }
 
 // AuthConfig represents authentication configuration
@@ -48,6 +49,11 @@ type AuthConfig struct {
 // ServerConfig represents server configuration
 type ServerConfig struct {
 	Port int
+}
+
+// DatabaseConfig represents database configuration
+type DatabaseConfig struct {
+	Path string
 }
 
 // P115Config represents 115 cloud storage configuration
@@ -148,6 +154,16 @@ func Resolve(cli CLIParams, toml *TOMLConfig, tomlPath string, legacy *LegacyCon
 		cfg.Server.Port = toml.Server.Port
 	} else {
 		cfg.Server.Port = 8115 // Default
+	}
+
+	// Database priority: TOML database.path > existing db.sqlite > default "db.sqlite"
+	if toml != nil && toml.Database.Path != "" {
+		// Resolve relative path based on config.toml directory
+		cfg.Database.Path = ResolveDatabasePath(toml.Database.Path, tomlPath)
+	} else if path, ok := findFile("db.sqlite", false); ok {
+		cfg.Database.Path = path
+	} else {
+		cfg.Database.Path = "db.sqlite" // Default
 	}
 
 	// P115 priority: CLI params > TOML > defaults

@@ -85,7 +85,9 @@ func TestReadConfigFilePrefersWorkingDirectory(t *testing.T) {
 	if string(data) != "from-workdir" {
 		t.Fatalf("unexpected config content: %s", data)
 	}
-	if path != "rss.json" {
-		t.Fatalf("expected relative workdir path, got %q", path)
+	// Path should now be absolute
+	expectedPath, _ := filepath.Abs("rss.json")
+	if path != expectedPath {
+		t.Fatalf("expected absolute workdir path %q, got %q", expectedPath, path)
 	}
 }

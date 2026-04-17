@@ -166,6 +166,7 @@ func initAgent(cmd *cobra.Command) *config.Config {
 		ChunkSize:     cfg.P115.ChunkSize,
 		CooldownMinMs: cfg.P115.CooldownMinMs,
 		CooldownMaxMs: cfg.P115.CooldownMaxMs,
+		DatabasePath:  cfg.Database.Path,
 	})
 
 	var agentErr error

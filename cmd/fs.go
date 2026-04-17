@@ -68,6 +68,7 @@ func initFsSession(ctx context.Context, cmd *cobra.Command) *cloudfs.Session {
 		ChunkSize:     cfg.P115.ChunkSize,
 		CooldownMinMs: cfg.P115.CooldownMinMs,
 		CooldownMaxMs: cfg.P115.CooldownMaxMs,
+		DatabasePath:  cfg.Database.Path,
 	})
 
 	var agent *p115.Agent
