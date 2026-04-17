@@ -11,7 +11,6 @@ import (
 	"github.com/deadblue/elevengo"
 	"github.com/deadblue/elevengo/option"
 	"github.com/zhifengle/rss2cloud/config"
-	"github.com/zhifengle/rss2cloud/configfile"
 	"github.com/zhifengle/rss2cloud/request"
 	"github.com/zhifengle/rss2cloud/rsssite"
 	"github.com/zhifengle/rss2cloud/store"
@@ -269,7 +268,7 @@ func determineCookieSavePath() string {
 	_, source, err := config.LoadWithOptions(config.CLIParams{}, config.LoadOptions{Auth: true})
 	if err != nil {
 		// Fallback to current directory if config loading fails
-		return configfile.ExistingPathOrDefault(".cookies")
+		return config.ExistingCookiePathOrDefault()
 	}
 
 	// Priority 1: Use the file that was originally read
@@ -286,7 +285,7 @@ func determineCookieSavePath() string {
 	}
 
 	// Priority 3: Fallback to current directory
-	return configfile.ExistingPathOrDefault(".cookies")
+	return config.ExistingCookiePathOrDefault()
 }
 
 func QrcodeLogin() (*Agent, error) {

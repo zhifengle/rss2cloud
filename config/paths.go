@@ -1,4 +1,4 @@
-package configfile
+package config
 
 import (
 	"errors"
@@ -6,23 +6,23 @@ import (
 	"path/filepath"
 )
 
-const AppDirName = "rss2cloud"
+const appDirName = "rss2cloud"
 
-func UserConfigDir() (string, bool) {
+func userConfigDir() (string, bool) {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
 		return "", false
 	}
-	return filepath.Join(home, ".config", AppDirName), true
+	return filepath.Join(home, ".config", appDirName), true
 }
 
-func CandidatePaths(filename string, includeLegacyHome bool) []string {
+func candidatePaths(filename string, includeLegacyHome bool) []string {
 	if filepath.IsAbs(filename) {
 		return []string{filename}
 	}
 
 	paths := []string{filename}
-	if dir, ok := UserConfigDir(); ok {
+	if dir, ok := userConfigDir(); ok {
 		paths = append(paths, filepath.Join(dir, filename))
 	}
 	if includeLegacyHome {
@@ -30,11 +30,11 @@ func CandidatePaths(filename string, includeLegacyHome bool) []string {
 			paths = append(paths, filepath.Join(home, filename))
 		}
 	}
-	return dedupe(paths)
+	return dedupePaths(paths)
 }
 
-func Find(filename string, includeLegacyHome bool) (string, bool) {
-	for _, candidate := range CandidatePaths(filename, includeLegacyHome) {
+func findFile(filename string, includeLegacyHome bool) (string, bool) {
+	for _, candidate := range candidatePaths(filename, includeLegacyHome) {
 		info, err := os.Stat(candidate)
 		if err == nil && !info.IsDir() {
 			return candidate, true
@@ -43,8 +43,8 @@ func Find(filename string, includeLegacyHome bool) (string, bool) {
 	return "", false
 }
 
-func ReadFile(filename string, includeLegacyHome bool) ([]byte, string, error) {
-	path, ok := Find(filename, includeLegacyHome)
+func readConfigFile(filename string, includeLegacyHome bool) ([]byte, string, error) {
+	path, ok := findFile(filename, includeLegacyHome)
 	if !ok {
 		return nil, "", errors.Join(os.ErrNotExist, errors.New(filename))
 	}
@@ -55,14 +55,14 @@ func ReadFile(filename string, includeLegacyHome bool) ([]byte, string, error) {
 	return data, path, nil
 }
 
-func ExistingPathOrDefault(filename string) string {
-	if path, ok := Find(filename, false); ok {
+func ExistingCookiePathOrDefault() string {
+	if path, ok := findFile(".cookies", false); ok {
 		return path
 	}
-	return filename
+	return ".cookies"
 }
 
-func dedupe(paths []string) []string {
+func dedupePaths(paths []string) []string {
 	seen := make(map[string]struct{}, len(paths))
 	result := make([]string, 0, len(paths))
 	for _, path := range paths {

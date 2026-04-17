@@ -5,14 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-
-	"github.com/zhifengle/rss2cloud/configfile"
 )
 
 // LoadLegacyRSS reads rss.json using existing search rules
 // Returns empty config (not error) when file doesn't exist
 func LoadLegacyRSS() (map[string][]RssConfig, error) {
-	data, _, err := configfile.ReadFile("rss.json", false)
+	data, _, err := readConfigFile("rss.json", false)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return make(map[string][]RssConfig), nil // Empty config, not an error
@@ -32,7 +30,7 @@ func LoadLegacyRSS() (map[string][]RssConfig, error) {
 // LoadLegacySites reads node-site-config.json using existing search rules
 // Returns empty config (not error) when file doesn't exist
 func LoadLegacySites() (map[string]SiteConfig, error) {
-	data, _, err := configfile.ReadFile("node-site-config.json", true)
+	data, _, err := readConfigFile("node-site-config.json", true)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return make(map[string]SiteConfig), nil // Empty config, not an error
@@ -52,7 +50,7 @@ func LoadLegacySites() (map[string]SiteConfig, error) {
 // LoadLegacyCookies reads .cookies file using existing search rules
 // Returns cookies string and path, or empty string and empty path if not found
 func LoadLegacyCookies() (string, string, error) {
-	data, path, err := configfile.ReadFile(".cookies", false)
+	data, path, err := readConfigFile(".cookies", false)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return "", "", nil // Empty cookies, not an error

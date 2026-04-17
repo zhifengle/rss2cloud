@@ -1,4 +1,4 @@
-package configfile
+package config
 
 import (
 	"os"
@@ -14,11 +14,11 @@ func setTestHome(t *testing.T, home string) {
 	t.Setenv("HOMEPATH", "")
 }
 
-func TestReadFileFallsBackToUserConfigDir(t *testing.T) {
+func TestReadConfigFileFallsBackToUserConfigDir(t *testing.T) {
 	tempDir := t.TempDir()
 	setTestHome(t, tempDir)
 
-	configDir := filepath.Join(tempDir, ".config", AppDirName)
+	configDir := filepath.Join(tempDir, ".config", appDirName)
 	if err := os.MkdirAll(configDir, 0o700); err != nil {
 		t.Fatalf("failed to create config dir: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestReadFileFallsBackToUserConfigDir(t *testing.T) {
 		_ = os.Chdir(originalWD)
 	})
 
-	data, path, err := ReadFile("rss.json", false)
+	data, path, err := readConfigFile("rss.json", false)
 	if err != nil {
 		t.Fatalf("expected config file to be read: %v", err)
 	}
@@ -51,11 +51,11 @@ func TestReadFileFallsBackToUserConfigDir(t *testing.T) {
 	}
 }
 
-func TestReadFilePrefersWorkingDirectory(t *testing.T) {
+func TestReadConfigFilePrefersWorkingDirectory(t *testing.T) {
 	tempDir := t.TempDir()
 	setTestHome(t, tempDir)
 
-	configDir := filepath.Join(tempDir, ".config", AppDirName)
+	configDir := filepath.Join(tempDir, ".config", appDirName)
 	if err := os.MkdirAll(configDir, 0o700); err != nil {
 		t.Fatalf("failed to create config dir: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestReadFilePrefersWorkingDirectory(t *testing.T) {
 		_ = os.Chdir(originalWD)
 	})
 
-	data, path, err := ReadFile("rss.json", false)
+	data, path, err := readConfigFile("rss.json", false)
 	if err != nil {
 		t.Fatalf("expected config file to be read: %v", err)
 	}

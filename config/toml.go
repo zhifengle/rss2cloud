@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
-	"github.com/zhifengle/rss2cloud/configfile"
 )
 
 // TOMLConfig represents the structure of config.toml
@@ -67,7 +66,7 @@ type TOMLSiteConfig struct {
 // FindConfigFile discovers config.toml in standard locations
 // Returns path and true if found, empty string and false otherwise
 func FindConfigFile() (string, bool) {
-	return configfile.Find("config.toml", false)
+	return findFile("config.toml", false)
 }
 
 // LoadTOML parses config.toml from the given path

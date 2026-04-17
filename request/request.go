@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"compress/flate"
 	"compress/gzip"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -13,7 +12,6 @@ import (
 	"time"
 
 	"github.com/zhifengle/rss2cloud/config"
-	"github.com/zhifengle/rss2cloud/configfile"
 )
 
 var (
@@ -46,12 +44,17 @@ func ReadNodeSiteConfig() NodeSiteConfig {
 	cfg, _, err := config.LoadWithOptions(config.CLIParams{}, config.LoadOptions{Sites: true})
 	if err != nil {
 		// Fallback to legacy behavior on error
-		legacyConfig := make(NodeSiteConfig)
-		file, _, err := configfile.ReadFile("node-site-config.json", true)
+		sites, err := config.LoadLegacySites()
 		if err != nil {
-			return legacyConfig
+			return make(NodeSiteConfig)
 		}
-		json.Unmarshal(file, &legacyConfig)
+		legacyConfig := make(NodeSiteConfig)
+		for host, site := range sites {
+			legacyConfig[host] = SiteConfig{
+				HttpsAgent: site.HttpsAgent,
+				Headers:    site.Headers,
+			}
+		}
 		return legacyConfig
 	}
 
