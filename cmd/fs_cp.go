@@ -14,7 +14,7 @@ var fsCpCmd = &cobra.Command{
 	Args:  cobra.MinimumNArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := context.Background()
-		session := initFsSession(ctx)
+		session := initFsSession(ctx, cmd)
 
 		targetDir := args[len(args)-1]
 		sources := args[:len(args)-1]

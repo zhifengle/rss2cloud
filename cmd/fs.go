@@ -54,8 +54,8 @@ func init() {
 
 // initFsSession initialises a p115.Agent and returns a cloudfs.Session.
 // It reuses the top-level cookies/qrLogin flags already defined in rss2cloud.go.
-func initFsSession(ctx context.Context) *cloudfs.Session {
-	cliParams := buildCLIParams(nil)
+func initFsSession(ctx context.Context, cmd *cobra.Command) *cloudfs.Session {
+	cliParams := buildCLIParams(cmd)
 	cfg, _, err := config.LoadWithOptions(cliParams, config.LoadOptions{Auth: true})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: load config: %v\n", err)

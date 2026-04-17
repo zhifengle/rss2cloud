@@ -14,7 +14,6 @@ import (
 
 var (
 	pAgent        *p115.Agent
-	loadedConfig  *config.Config // Store loaded config for access across commands
 	rssUrl        string
 	cookies       string
 	rssJsonPath   string
@@ -80,10 +79,8 @@ var (
 		Use:   "server",
 		Short: `Start server`,
 		Run: func(_cmd *cobra.Command, _args []string) {
-			initAgent(_cmd)
-			// Use port from loaded config (which respects CLI > TOML > Default priority)
-			serverPort := loadedConfig.Server.Port
-			server.New(pAgent, serverPort).StartServer()
+			cfg := initAgent(_cmd)
+			server.New(pAgent, cfg.Server.Port).StartServer()
 		},
 	}
 )
@@ -119,26 +116,25 @@ func init() {
 func buildCLIParams(cmd *cobra.Command) config.CLIParams {
 	cliParams := config.CLIParams{
 		Cookies: cookies,
-		RSSPath: rssJsonPath,
 	}
 
-	if commandFlagChanged(cmd, "no-cache") || (cmd == nil && disableCache) {
+	if commandFlagChanged(cmd, "no-cache") {
 		cliParams.DisableCache = disableCache
 		cliParams.DisableCacheSet = true
 	}
-	if commandFlagChanged(cmd, "chunk-delay") || (cmd == nil && chunkDelay != 0) {
+	if commandFlagChanged(cmd, "chunk-delay") {
 		cliParams.ChunkDelay = chunkDelay
 		cliParams.ChunkDelaySet = true
 	}
-	if commandFlagChanged(cmd, "chunk-size") || (cmd == nil && chunkSize != 0) {
+	if commandFlagChanged(cmd, "chunk-size") {
 		cliParams.ChunkSize = chunkSize
 		cliParams.ChunkSizeSet = true
 	}
-	if commandFlagChanged(cmd, "cooldown-min-ms") || (cmd == nil && cooldownMinMs != 1000) {
+	if commandFlagChanged(cmd, "cooldown-min-ms") {
 		cliParams.CooldownMinMs = cooldownMinMs
 		cliParams.CooldownMinMsSet = true
 	}
-	if commandFlagChanged(cmd, "cooldown-max-ms") || (cmd == nil && cooldownMaxMs != 1100) {
+	if commandFlagChanged(cmd, "cooldown-max-ms") {
 		cliParams.CooldownMaxMs = cooldownMaxMs
 		cliParams.CooldownMaxMsSet = true
 	}
@@ -156,15 +152,13 @@ func commandFlagChanged(cmd *cobra.Command, name string) bool {
 	return cmd.Flags().Changed(name) || cmd.InheritedFlags().Changed(name) || cmd.PersistentFlags().Changed(name)
 }
 
-func initAgent(cmd *cobra.Command) {
+func initAgent(cmd *cobra.Command) *config.Config {
 	cliParams := buildCLIParams(cmd)
 
 	cfg, _, err := config.LoadWithOptions(cliParams, config.LoadOptions{Auth: true})
 	if err != nil {
 		log.Fatalln(err)
 	}
-
-	loadedConfig = cfg
 
 	p115.SetOption(p115.Option{
 		DisableCache:  cfg.P115.DisableCache,
@@ -185,4 +179,5 @@ func initAgent(cmd *cobra.Command) {
 	if agentErr != nil {
 		log.Fatalln(agentErr)
 	}
+	return cfg
 }

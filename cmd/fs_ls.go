@@ -13,7 +13,7 @@ var fsLsCmd = &cobra.Command{
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := context.Background()
-		session := initFsSession(ctx)
+		session := initFsSession(ctx, cmd)
 
 		target := ""
 		if len(args) > 0 {

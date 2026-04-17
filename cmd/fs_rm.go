@@ -15,7 +15,7 @@ var fsRmCmd = &cobra.Command{
 	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := context.Background()
-		session := initFsSession(ctx)
+		session := initFsSession(ctx, cmd)
 
 		if err := session.Rm(ctx, args...); err != nil {
 			printFsError(err)

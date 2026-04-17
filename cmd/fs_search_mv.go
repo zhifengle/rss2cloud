@@ -16,13 +16,13 @@ var (
 )
 
 var fsSearchMvCmd = &cobra.Command{
-	Use:   "search-mv <search-root> <keyword> <target-dir>",
+	Use:     "search-mv <search-root> <keyword> <target-dir>",
 	Aliases: []string{"search_mv"},
-	Short: "Search files under a directory and move matches into a target directory",
-	Args:  cobra.ExactArgs(3),
+	Short:   "Search files under a directory and move matches into a target directory",
+	Args:    cobra.ExactArgs(3),
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := context.Background()
-		session := initFsSession(ctx)
+		session := initFsSession(ctx, cmd)
 
 		searchRoot := args[0]
 		keyword := strings.TrimSpace(args[1])

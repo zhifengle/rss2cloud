@@ -13,7 +13,7 @@ var fsRenameCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := context.Background()
-		session := initFsSession(ctx)
+		session := initFsSession(ctx, cmd)
 
 		entry, err := session.Rename(ctx, args[0], args[1])
 		if err != nil {

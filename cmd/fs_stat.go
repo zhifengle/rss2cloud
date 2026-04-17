@@ -13,7 +13,7 @@ var fsStatCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := context.Background()
-		session := initFsSession(ctx)
+		session := initFsSession(ctx, cmd)
 
 		entry, err := session.Stat(ctx, args[0])
 		if err != nil {

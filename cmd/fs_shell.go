@@ -33,7 +33,7 @@ Use --list-cache-ttl on the parent fs command to tune freshness, for example:
 		}
 
 		ctx := context.Background()
-		session := initShellSession(ctx)
+		session := initShellSession(ctx, cmd)
 
 		// Restore last cwd from persisted state (only if --cwd was not given).
 		if fsCwd == "" {

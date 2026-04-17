@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/zhifengle/rss2cloud/cloudfs"
 )
 
@@ -504,7 +505,7 @@ func TestFsShellRunRejectsNonInteractiveBeforeInitSession(t *testing.T) {
 	}()
 
 	called := false
-	initShellSession = func(ctx context.Context) *cloudfs.Session {
+	initShellSession = func(ctx context.Context, cmd *cobra.Command) *cloudfs.Session {
 		called = true
 		return nil
 	}

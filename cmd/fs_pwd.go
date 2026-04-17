@@ -13,7 +13,7 @@ var fsPwdCmd = &cobra.Command{
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := context.Background()
-		session := initFsSession(ctx)
+		session := initFsSession(ctx, cmd)
 		if fsJSON {
 			printJSON(map[string]string{"cwd": session.Pwd()})
 		} else {
