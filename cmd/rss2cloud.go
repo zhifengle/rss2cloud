@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/zhifengle/rss2cloud/config"
 	"github.com/zhifengle/rss2cloud/p115"
 	"github.com/zhifengle/rss2cloud/rsssite"
 	"github.com/zhifengle/rss2cloud/server"
@@ -13,6 +14,7 @@ import (
 
 var (
 	pAgent        *p115.Agent
+	loadedConfig  *config.Config // Store loaded config for access across commands
 	rssUrl        string
 	cookies       string
 	rssJsonPath   string
@@ -27,7 +29,7 @@ var (
 		Use:   "rss2cloud",
 		Short: `Add offline tasks to 115`,
 		Run: func(_cmd *cobra.Command, _args []string) {
-			initAgent()
+			initAgent(_cmd)
 			if rssJsonPath != "" {
 				rsssite.SetRssJsonPath(rssJsonPath)
 			}
@@ -54,7 +56,7 @@ var (
 		Use:   "magnet",
 		Short: `Add magnet tasks to 115`,
 		Run: func(_cmd *cobra.Command, _args []string) {
-			initAgent()
+			initAgent(_cmd)
 			magnets := []string{}
 			if textFile != "" {
 				var err error
@@ -78,8 +80,10 @@ var (
 		Use:   "server",
 		Short: `Start server`,
 		Run: func(_cmd *cobra.Command, _args []string) {
-			initAgent()
-			server.New(pAgent, port).StartServer()
+			initAgent(_cmd)
+			// Use port from loaded config (which respects CLI > TOML > Default priority)
+			serverPort := loadedConfig.Server.Port
+			server.New(pAgent, serverPort).StartServer()
 		},
 	}
 )
@@ -112,23 +116,73 @@ func init() {
 	rootCmd.AddCommand(serverCmd)
 }
 
-func initAgent() {
-	p115.SetOption(p115.Option{
-		DisableCache:  disableCache,
-		ChunkDelay:    chunkDelay,
-		ChunkSize:     chunkSize,
-		CooldownMinMs: cooldownMinMs,
-		CooldownMaxMs: cooldownMaxMs,
-	})
-	var err error
-	if cookies != "" {
-		pAgent, err = p115.NewAgent(cookies)
-	} else if qrLogin {
-		pAgent, err = p115.NewAgentByQrcode()
-	} else {
-		pAgent, err = p115.New()
+func buildCLIParams(cmd *cobra.Command) config.CLIParams {
+	cliParams := config.CLIParams{
+		Cookies: cookies,
+		RSSPath: rssJsonPath,
 	}
+
+	if commandFlagChanged(cmd, "no-cache") || (cmd == nil && disableCache) {
+		cliParams.DisableCache = disableCache
+		cliParams.DisableCacheSet = true
+	}
+	if commandFlagChanged(cmd, "chunk-delay") || (cmd == nil && chunkDelay != 0) {
+		cliParams.ChunkDelay = chunkDelay
+		cliParams.ChunkDelaySet = true
+	}
+	if commandFlagChanged(cmd, "chunk-size") || (cmd == nil && chunkSize != 0) {
+		cliParams.ChunkSize = chunkSize
+		cliParams.ChunkSizeSet = true
+	}
+	if commandFlagChanged(cmd, "cooldown-min-ms") || (cmd == nil && cooldownMinMs != 1000) {
+		cliParams.CooldownMinMs = cooldownMinMs
+		cliParams.CooldownMinMsSet = true
+	}
+	if commandFlagChanged(cmd, "cooldown-max-ms") || (cmd == nil && cooldownMaxMs != 1100) {
+		cliParams.CooldownMaxMs = cooldownMaxMs
+		cliParams.CooldownMaxMsSet = true
+	}
+	if cmd != nil && cmd.Flags().Changed("port") {
+		cliParams.Port = port
+		cliParams.PortSet = true
+	}
+	return cliParams
+}
+
+func commandFlagChanged(cmd *cobra.Command, name string) bool {
+	if cmd == nil {
+		return false
+	}
+	return cmd.Flags().Changed(name) || cmd.InheritedFlags().Changed(name) || cmd.PersistentFlags().Changed(name)
+}
+
+func initAgent(cmd *cobra.Command) {
+	cliParams := buildCLIParams(cmd)
+
+	cfg, _, err := config.LoadWithOptions(cliParams, config.LoadOptions{Auth: true})
 	if err != nil {
 		log.Fatalln(err)
+	}
+
+	loadedConfig = cfg
+
+	p115.SetOption(p115.Option{
+		DisableCache:  cfg.P115.DisableCache,
+		ChunkDelay:    cfg.P115.ChunkDelay,
+		ChunkSize:     cfg.P115.ChunkSize,
+		CooldownMinMs: cfg.P115.CooldownMinMs,
+		CooldownMaxMs: cfg.P115.CooldownMaxMs,
+	})
+
+	var agentErr error
+	if cfg.Auth.Cookies != "" {
+		pAgent, agentErr = p115.NewAgent(cfg.Auth.Cookies)
+	} else if qrLogin {
+		pAgent, agentErr = p115.NewAgentByQrcode()
+	} else {
+		pAgent, agentErr = p115.New()
+	}
+	if agentErr != nil {
+		log.Fatalln(agentErr)
 	}
 }

@@ -1,13 +1,11 @@
 package rsssite
 
 import (
-	"encoding/json"
 	urlPkg "net/url"
-	"os"
 	"sort"
 	"strings"
 
-	"github.com/zhifengle/rss2cloud/configfile"
+	"github.com/zhifengle/rss2cloud/config"
 )
 
 var (
@@ -29,25 +27,31 @@ func SetRssJsonPath(p string) {
 }
 
 func ReadRssConfigDict() *map[string][]RssConfig {
-	var (
-		file []byte
-		err  error
-	)
-	if rssJsonPath != "" {
-		file, err = os.ReadFile(rssJsonPath)
-		if err != nil {
-			return nil
-		}
-	} else {
-		file, _, err = configfile.ReadFile("rss.json", false)
-		if err != nil {
-			return nil
-		}
+	// Use config.Load() with RSSPath from SetRssJsonPath()
+	cfg, _, err := config.LoadWithOptions(config.CLIParams{RSSPath: rssJsonPath}, config.LoadOptions{RSS: true})
+	if err != nil {
+		return nil
 	}
-	config := make(map[string][]RssConfig)
-	json.Unmarshal(file, &config)
-	RssConfigDict = config
-	return &config
+
+	// Convert config.RssConfig to rsssite.RssConfig
+	result := make(map[string][]RssConfig)
+	for site, configs := range cfg.RSS {
+		siteConfigs := make([]RssConfig, len(configs))
+		for i, c := range configs {
+			siteConfigs[i] = RssConfig{
+				Name:       c.Name,
+				Url:        c.Url,
+				Cid:        c.Cid,
+				SavePath:   c.SavePath,
+				Filter:     c.Filter,
+				Expiration: c.Expiration,
+			}
+		}
+		result[site] = siteConfigs
+	}
+
+	RssConfigDict = result
+	return &result
 }
 
 func GetRssConfigByURL(url string) *RssConfig {

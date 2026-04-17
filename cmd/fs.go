@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/zhifengle/rss2cloud/cloudfs"
+	"github.com/zhifengle/rss2cloud/config"
 	"github.com/zhifengle/rss2cloud/p115"
 )
 
@@ -54,15 +55,24 @@ func init() {
 // initFsSession initialises a p115.Agent and returns a cloudfs.Session.
 // It reuses the top-level cookies/qrLogin flags already defined in rss2cloud.go.
 func initFsSession(ctx context.Context) *cloudfs.Session {
+	cliParams := buildCLIParams(nil)
+	cfg, _, err := config.LoadWithOptions(cliParams, config.LoadOptions{Auth: true})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: load config: %v\n", err)
+		os.Exit(1)
+	}
+
 	p115.SetOption(p115.Option{
-		CooldownMinMs: cooldownMinMs,
-		CooldownMaxMs: cooldownMaxMs,
+		DisableCache:  cfg.P115.DisableCache,
+		ChunkDelay:    cfg.P115.ChunkDelay,
+		ChunkSize:     cfg.P115.ChunkSize,
+		CooldownMinMs: cfg.P115.CooldownMinMs,
+		CooldownMaxMs: cfg.P115.CooldownMaxMs,
 	})
 
 	var agent *p115.Agent
-	var err error
-	if cookies != "" {
-		agent, err = p115.NewAgent(cookies)
+	if cfg.Auth.Cookies != "" {
+		agent, err = p115.NewAgent(cfg.Auth.Cookies)
 	} else if qrLogin {
 		agent, err = p115.NewAgentByQrcode()
 	} else {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/deadblue/elevengo"
 	"github.com/deadblue/elevengo/option"
+	"github.com/zhifengle/rss2cloud/config"
 	"github.com/zhifengle/rss2cloud/configfile"
 	"github.com/zhifengle/rss2cloud/request"
 	"github.com/zhifengle/rss2cloud/rsssite"
@@ -82,7 +83,10 @@ func parseCookies(cookiesString string) map[string]string {
 }
 
 func New() (*Agent, error) {
-	cookies := LoadCookies()
+	cookies, err := LoadCookiesWithError()
+	if err != nil {
+		return nil, err
+	}
 	if cookies != "" {
 		agent, err := NewAgent(cookies)
 		// cookies is invalid
@@ -95,7 +99,10 @@ func New() (*Agent, error) {
 }
 
 func NewAgentByQrcode() (*Agent, error) {
-	cookies := LoadCookies()
+	cookies, err := LoadCookiesWithError()
+	if err != nil {
+		return nil, err
+	}
 	if cookies != "" {
 		agent, err := NewAgent(cookies)
 		// cookies is invalid
@@ -232,15 +239,54 @@ func SaveCookies(agent *elevengo.Agent) {
 	cr := &elevengo.Credential{}
 	agent.CredentialExport(cr)
 	cookies := fmt.Sprintf("UID=%s; CID=%s; SEID=%s; KID=%s", cr.UID, cr.CID, cr.SEID, cr.KID)
-	os.WriteFile(configfile.ExistingPathOrDefault(".cookies"), []byte(cookies), 0600)
+
+	// Determine save location using config package
+	savePath := determineCookieSavePath()
+	if err := os.WriteFile(savePath, []byte(cookies), 0600); err != nil {
+		log.Printf("failed to save cookies to %s: %v\n", savePath, err)
+	}
 }
 
 func LoadCookies() string {
-	cookies, _, err := configfile.ReadFile(".cookies", false)
+	cookies, err := LoadCookiesWithError()
 	if err != nil {
 		return ""
 	}
-	return string(cookies)
+	return cookies
+}
+
+func LoadCookiesWithError() (string, error) {
+	cfg, _, err := config.LoadWithOptions(config.CLIParams{}, config.LoadOptions{Auth: true})
+	if err != nil {
+		return "", err
+	}
+	return cfg.Auth.Cookies, nil
+}
+
+// determineCookieSavePath determines where to save cookies based on configuration source
+// Priority: original file > TOML cookies_file > current directory .cookies
+func determineCookieSavePath() string {
+	_, source, err := config.LoadWithOptions(config.CLIParams{}, config.LoadOptions{Auth: true})
+	if err != nil {
+		// Fallback to current directory if config loading fails
+		return configfile.ExistingPathOrDefault(".cookies")
+	}
+
+	// Priority 1: Use the file that was originally read
+	if source.CookiesPath != "" {
+		return source.CookiesPath
+	}
+
+	// Priority 2: Use TOML-configured cookies_file
+	if source.TOMLPath != "" {
+		cfg, err := config.LoadTOML(source.TOMLPath)
+		if err == nil && cfg.Auth.CookiesFile != "" {
+			return config.ResolveCookiesFile(cfg.Auth.CookiesFile, source.TOMLPath)
+		}
+	}
+
+	// Priority 3: Fallback to current directory
+	return configfile.ExistingPathOrDefault(".cookies")
 }
 
 func QrcodeLogin() (*Agent, error) {

@@ -30,7 +30,7 @@ func withIsolatedGlobals(t *testing.T) {
 	t.Helper()
 
 	originalConfig := ReqSiteConfig
-	originalProxy := httpProxy
+	originalProxy := proxyURL
 	originalUA := ua
 
 	clientMapMu.Lock()
@@ -39,12 +39,12 @@ func withIsolatedGlobals(t *testing.T) {
 	clientMapMu.Unlock()
 
 	ReqSiteConfig = make(NodeSiteConfig)
-	httpProxy = "http://127.0.0.1:10809"
+	proxyURL = "http://127.0.0.1:10809"
 	ua = "test-agent"
 
 	t.Cleanup(func() {
 		ReqSiteConfig = originalConfig
-		httpProxy = originalProxy
+		proxyURL = originalProxy
 		ua = originalUA
 
 		clientMapMu.Lock()
@@ -71,6 +71,11 @@ func newTestServer(t *testing.T) *httptest.Server {
 		gz := gzip.NewWriter(w)
 		defer gz.Close()
 		_, _ = gz.Write([]byte("compressed response"))
+	})
+
+	mux.HandleFunc("/bad-gzip", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Encoding", "gzip")
+		_, _ = io.WriteString(w, "not gzip")
 	})
 
 	mux.HandleFunc("/cookies", func(w http.ResponseWriter, r *http.Request) {
@@ -231,6 +236,17 @@ func TestGetByteWithGzip(t *testing.T) {
 	}
 	if string(res) != "compressed response" {
 		t.Fatalf("expected decompressed response, got %q", string(res))
+	}
+}
+
+func TestGetByteWithInvalidGzip(t *testing.T) {
+	withIsolatedGlobals(t)
+	server := newTestServer(t)
+	defer server.Close()
+
+	_, err := GetByte(server.URL+"/bad-gzip", nil)
+	if err == nil {
+		t.Fatal("expected invalid gzip response to return error")
 	}
 }
 

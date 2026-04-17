@@ -12,16 +12,27 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zhifengle/rss2cloud/config"
 	"github.com/zhifengle/rss2cloud/configfile"
 )
 
 var (
 	ReqSiteConfig = ReadNodeSiteConfig()
-	httpProxy     = "http://127.0.0.1:10809"
+	proxyURL      = getProxyURL()
 	ua            = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
 	clientMap     = make(map[string]*http.Client)
 	clientMapMu   sync.RWMutex
 )
+
+// getProxyURL loads the proxy URL from configuration
+func getProxyURL() string {
+	cfg, _, err := config.LoadWithOptions(config.CLIParams{}, config.LoadOptions{})
+	if err != nil {
+		// Fallback to default on error
+		return "http://127.0.0.1:10809"
+	}
+	return cfg.Proxy.HTTP
+}
 
 type SiteConfig struct {
 	HttpsAgent string            `json:"httpsAgent,omitempty"`
@@ -31,14 +42,29 @@ type SiteConfig struct {
 type NodeSiteConfig = map[string]SiteConfig
 
 func ReadNodeSiteConfig() NodeSiteConfig {
-	config := make(NodeSiteConfig)
-
-	file, _, err := configfile.ReadFile("node-site-config.json", true)
+	// Use config.Load() to get unified configuration
+	cfg, _, err := config.LoadWithOptions(config.CLIParams{}, config.LoadOptions{Sites: true})
 	if err != nil {
-		return config
+		// Fallback to legacy behavior on error
+		legacyConfig := make(NodeSiteConfig)
+		file, _, err := configfile.ReadFile("node-site-config.json", true)
+		if err != nil {
+			return legacyConfig
+		}
+		json.Unmarshal(file, &legacyConfig)
+		return legacyConfig
 	}
-	json.Unmarshal(file, &config)
-	return config
+
+	// Convert config.SiteConfig to request.SiteConfig
+	result := make(NodeSiteConfig)
+	for host, site := range cfg.Sites {
+		result[host] = SiteConfig{
+			HttpsAgent: site.HttpsAgent,
+			Headers:    site.Headers,
+		}
+	}
+
+	return result
 }
 
 func getClientByReq(req *http.Request) *http.Client {
@@ -62,7 +88,7 @@ func getClientByReq(req *http.Request) *http.Client {
 	if ok && curConfig.HttpsAgent != "" {
 		u, _ := http.ProxyFromEnvironment(req)
 		if u == nil {
-			proxy, _ := urlPkg.Parse(httpProxy)
+			proxy, _ := urlPkg.Parse(proxyURL)
 			p = http.ProxyURL(proxy)
 		} else {
 			p = http.ProxyFromEnvironment
@@ -120,7 +146,10 @@ func GetByte(url string, headers map[string]string) ([]byte, error) {
 	var reader io.ReadCloser
 	switch res.Header.Get("Content-Encoding") {
 	case "gzip":
-		reader, _ = gzip.NewReader(res.Body)
+		reader, err = gzip.NewReader(res.Body)
+		if err != nil {
+			return nil, err
+		}
 	case "deflate":
 		reader = flate.NewReader(res.Body)
 	default:
