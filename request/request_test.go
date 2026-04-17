@@ -166,6 +166,46 @@ func TestReadNodeSiteConfig(t *testing.T) {
 	}
 }
 
+func TestReadNodeSiteConfigFromUserConfigDir(t *testing.T) {
+	withIsolatedGlobals(t)
+
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	t.Setenv("USERPROFILE", homeDir)
+	t.Setenv("HOMEDRIVE", "")
+	t.Setenv("HOMEPATH", "")
+
+	configDir := filepath.Join(homeDir, ".config", "rss2cloud")
+	if err := os.MkdirAll(configDir, 0o700); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
+	configFile := filepath.Join(configDir, "node-site-config.json")
+	configContent := `{"example.org":{"httpsAgent":"yes","headers":{"X-Config":"home"}}}`
+	if err := os.WriteFile(configFile, []byte(configContent), 0o600); err != nil {
+		t.Fatalf("failed to create config file: %v", err)
+	}
+
+	originalWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	if err := os.Chdir(t.TempDir()); err != nil {
+		t.Fatalf("failed to change working directory: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(originalWD)
+	})
+
+	config := ReadNodeSiteConfig()
+	siteConfig, ok := config["example.org"]
+	if !ok {
+		t.Fatalf("expected example.org config to exist")
+	}
+	if siteConfig.Headers["X-Config"] != "home" {
+		t.Fatalf("expected X-Config header to be home, got %q", siteConfig.Headers["X-Config"])
+	}
+}
+
 func TestGet(t *testing.T) {
 	withIsolatedGlobals(t)
 	server := newTestServer(t)

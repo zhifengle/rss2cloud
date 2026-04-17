@@ -2,6 +2,7 @@ package rsssite
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -77,5 +78,47 @@ func TestGetRssConfigByURLMatchesSchemeAndQueryOrder(t *testing.T) {
 	}
 	if rssConfig.Cid != "" {
 		t.Fatalf("expected empty cid from sample config, got %q", rssConfig.Cid)
+	}
+}
+
+func TestReadRssConfigDictFromUserConfigDir(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	t.Setenv("USERPROFILE", homeDir)
+	t.Setenv("HOMEDRIVE", "")
+	t.Setenv("HOMEPATH", "")
+
+	configDir := filepath.Join(homeDir, ".config", "rss2cloud")
+	if err := os.MkdirAll(configDir, 0o700); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
+	configFile := filepath.Join(configDir, "rss.json")
+	configContent := `{"example.com":[{"name":"from-config-dir","url":"https://example.com/rss"}]}`
+	if err := os.WriteFile(configFile, []byte(configContent), 0o600); err != nil {
+		t.Fatalf("failed to create rss config: %v", err)
+	}
+
+	originalWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	if err := os.Chdir(t.TempDir()); err != nil {
+		t.Fatalf("failed to change working directory: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(originalWD)
+		SetRssJsonPath("")
+		RssConfigDict = nil
+	})
+	SetRssJsonPath("")
+	RssConfigDict = nil
+
+	configs := ReadRssConfigDict()
+	if configs == nil {
+		t.Fatalf("expected rss config to be read")
+	}
+	got := (*configs)["example.com"]
+	if len(got) != 1 || got[0].Name != "from-config-dir" {
+		t.Fatalf("unexpected rss config: %#v", got)
 	}
 }

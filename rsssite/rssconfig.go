@@ -6,6 +6,8 @@ import (
 	"os"
 	"sort"
 	"strings"
+
+	"github.com/zhifengle/rss2cloud/configfile"
 )
 
 var (
@@ -27,13 +29,20 @@ func SetRssJsonPath(p string) {
 }
 
 func ReadRssConfigDict() *map[string][]RssConfig {
-	if rssJsonPath == "" {
-		rssJsonPath = "rss.json"
-	}
-	// read config
-	file, err := os.ReadFile(rssJsonPath)
-	if err != nil {
-		return nil
+	var (
+		file []byte
+		err  error
+	)
+	if rssJsonPath != "" {
+		file, err = os.ReadFile(rssJsonPath)
+		if err != nil {
+			return nil
+		}
+	} else {
+		file, _, err = configfile.ReadFile("rss.json", false)
+		if err != nil {
+			return nil
+		}
 	}
 	config := make(map[string][]RssConfig)
 	json.Unmarshal(file, &config)

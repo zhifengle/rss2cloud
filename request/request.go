@@ -9,10 +9,10 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	urlPkg "net/url"
-	"os"
-	"path"
 	"sync"
 	"time"
+
+	"github.com/zhifengle/rss2cloud/configfile"
 )
 
 var (
@@ -31,17 +31,12 @@ type SiteConfig struct {
 type NodeSiteConfig = map[string]SiteConfig
 
 func ReadNodeSiteConfig() NodeSiteConfig {
-	filename := "node-site-config.json"
 	config := make(NodeSiteConfig)
 
-	if _, err := os.Stat(filename); err != nil {
-		home, _ := os.UserHomeDir()
-		filename = path.Join(home, filename)
-		if _, err := os.Stat(filename); err != nil {
-			return config
-		}
+	file, _, err := configfile.ReadFile("node-site-config.json", true)
+	if err != nil {
+		return config
 	}
-	file, _ := os.ReadFile(filename)
 	json.Unmarshal(file, &config)
 	return config
 }

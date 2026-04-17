@@ -10,6 +10,7 @@ import (
 
 	"github.com/deadblue/elevengo"
 	"github.com/deadblue/elevengo/option"
+	"github.com/zhifengle/rss2cloud/configfile"
 	"github.com/zhifengle/rss2cloud/request"
 	"github.com/zhifengle/rss2cloud/rsssite"
 	"github.com/zhifengle/rss2cloud/store"
@@ -231,15 +232,11 @@ func SaveCookies(agent *elevengo.Agent) {
 	cr := &elevengo.Credential{}
 	agent.CredentialExport(cr)
 	cookies := fmt.Sprintf("UID=%s; CID=%s; SEID=%s; KID=%s", cr.UID, cr.CID, cr.SEID, cr.KID)
-	os.WriteFile(".cookies", []byte(cookies), 0600)
+	os.WriteFile(configfile.ExistingPathOrDefault(".cookies"), []byte(cookies), 0600)
 }
 
 func LoadCookies() string {
-	// check if .cookies exists
-	if _, err := os.Stat(".cookies"); err != nil {
-		return ""
-	}
-	cookies, err := os.ReadFile(".cookies")
+	cookies, _, err := configfile.ReadFile(".cookies", false)
 	if err != nil {
 		return ""
 	}
