@@ -6,9 +6,11 @@ APP_NAME='rss2cloud'
 REPO='zhifengle/rss2cloud'
 BIN_PATH='/usr/local/bin/rss2cloud'
 DATA_DIR='/var/lib/rss2cloud'
-SERVICE_USER='rss2cloud'
-SERVICE_PORT='8115'
+CONFIG_FILE="${DATA_DIR}/config.toml"
+COOKIES_FILE="${DATA_DIR}/.cookies"
+DB_FILE="${DATA_DIR}/db.sqlite"
 SERVICE_FILE='/etc/systemd/system/rss2cloud.service'
+SERVICE_PORT='8115'
 
 info() {
   echo "info: $*"
@@ -21,6 +23,23 @@ error() {
 die() {
   error "$*"
   exit 1
+}
+
+usage() {
+  cat <<EOF
+Usage:
+  install-release.sh [install|update|uninstall|purge]
+
+Commands:
+  install     Install or update rss2cloud. This is the default command.
+  update      Same as install.
+  uninstall   Stop service and remove binary/service files. Keep config and data.
+  purge       Uninstall and remove config and data.
+
+Examples:
+  curl -fsSL https://raw.githubusercontent.com/${REPO}/main/scripts/install-release.sh | sudo bash
+  curl -fsSL https://raw.githubusercontent.com/${REPO}/main/scripts/install-release.sh | sudo bash -s -- uninstall
+EOF
 }
 
 require_root() {
@@ -60,33 +79,42 @@ latest_version() {
   echo "$tag"
 }
 
-install_service_user() {
-  local nologin_shell
-
-  require_command getent
-  if ! getent group "$SERVICE_USER" >/dev/null 2>&1; then
-    require_command groupadd
-    groupadd --system "$SERVICE_USER"
-    info "created system group: ${SERVICE_USER}"
-  fi
-
-  if id "$SERVICE_USER" >/dev/null 2>&1; then
-    return
-  fi
-
-  require_command useradd
-  nologin_shell="$(command -v nologin || true)"
-  if [ -z "$nologin_shell" ]; then
-    nologin_shell='/usr/sbin/nologin'
-  fi
-
-  useradd --system --gid "$SERVICE_USER" --home-dir "$DATA_DIR" --shell "$nologin_shell" "$SERVICE_USER"
-  info "created system user: ${SERVICE_USER}"
+install_config_dir() {
+  install -d -m 0700 "$DATA_DIR"
 }
 
-install_data_dir() {
-  install -d -m 0755 -o "$SERVICE_USER" -g "$SERVICE_USER" "$DATA_DIR"
-  info "installed: ${DATA_DIR}"
+install_default_config() {
+  if [ -e "$CONFIG_FILE" ]; then
+    chmod 0640 "$CONFIG_FILE"
+    info "kept existing: ${CONFIG_FILE}"
+  else
+    cat >"$CONFIG_FILE" <<EOF
+[auth]
+cookies_file = ".cookies"
+
+[server]
+port = ${SERVICE_PORT}
+
+[database]
+path = "db.sqlite"
+EOF
+    chmod 0640 "$CONFIG_FILE"
+    info "installed: ${CONFIG_FILE}"
+  fi
+
+  if [ -e "$COOKIES_FILE" ]; then
+    chmod 0600 "$COOKIES_FILE"
+    info "kept existing: ${COOKIES_FILE}"
+  else
+    : >"$COOKIES_FILE"
+    chmod 0600 "$COOKIES_FILE"
+    info "created: ${COOKIES_FILE}"
+  fi
+
+  if [ -e "$DB_FILE" ]; then
+    chmod 0600 "$DB_FILE"
+    info "kept existing: ${DB_FILE}"
+  fi
 }
 
 download_binary() {
@@ -114,7 +142,7 @@ install_binary() {
 }
 
 install_systemd_service() {
-  cat >"$SERVICE_FILE" <<SERVICE
+  cat >"$SERVICE_FILE" <<EOF
 [Unit]
 Description=rss2cloud server
 Documentation=https://github.com/${REPO}
@@ -123,50 +151,55 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=${SERVICE_USER}
-Group=${SERVICE_USER}
 WorkingDirectory=${DATA_DIR}
-ExecStart=${BIN_PATH} server --port ${SERVICE_PORT}
+ExecStart=${BIN_PATH} server
 Restart=on-failure
 RestartSec=5s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=${DATA_DIR}
 
 [Install]
 WantedBy=multi-user.target
-SERVICE
+EOF
 
   chmod 0644 "$SERVICE_FILE"
   systemctl daemon-reload
   info "installed: ${SERVICE_FILE}"
 }
 
-print_next_steps() {
+print_install_next_steps() {
   cat <<EOF
 
 rss2cloud is installed.
 
-Put runtime files in ${DATA_DIR}:
-  - .cookies
-  - rss.json
-  - node-site-config.json
+Config:
+  ${CONFIG_FILE}
 
-Then start the service:
-  systemctl enable --now rss2cloud
+Cookies:
+  ${COOKIES_FILE}
+
+Start service after cookies are ready:
+  systemctl enable --now ${APP_NAME}
 
 Useful commands:
-  systemctl status rss2cloud
-  journalctl -u rss2cloud -f
+  systemctl status ${APP_NAME}
+  journalctl -u ${APP_NAME} -f
+  systemctl restart ${APP_NAME}
 EOF
 }
 
-main() {
+install_release() {
   local arch version tmp_dir tmp_file
 
-  require_root
   require_linux_systemd
   require_command curl
   require_command sed
   require_command install
   require_command tar
+  require_command mktemp
 
   arch="$(detect_arch)"
   version="$(latest_version)"
@@ -175,11 +208,84 @@ main() {
   trap 'rm -rf "$tmp_dir"' EXIT
 
   download_binary "$version" "$arch" "$tmp_file"
-  install_service_user
-  install_data_dir
+  install_config_dir
+  install_default_config
   install_binary "$tmp_file" "$tmp_dir"
   install_systemd_service
-  print_next_steps
+  print_install_next_steps
+}
+
+stop_service_if_present() {
+  if [ -f "$SERVICE_FILE" ]; then
+    systemctl stop "$APP_NAME" >/dev/null 2>&1 || true
+    systemctl disable "$APP_NAME" >/dev/null 2>&1 || true
+  fi
+}
+
+uninstall_release() {
+  require_linux_systemd
+
+  stop_service_if_present
+
+  if [ -f "$SERVICE_FILE" ]; then
+    rm -f "$SERVICE_FILE"
+    info "removed: ${SERVICE_FILE}"
+  fi
+
+  systemctl daemon-reload
+  systemctl reset-failed "$APP_NAME" >/dev/null 2>&1 || true
+
+  if [ -f "$BIN_PATH" ]; then
+    rm -f "$BIN_PATH"
+    info "removed: ${BIN_PATH}"
+  fi
+
+  cat <<EOF
+
+rss2cloud is uninstalled.
+
+Kept config and data:
+  ${DATA_DIR}
+
+Remove them too:
+  curl -fsSL https://raw.githubusercontent.com/${REPO}/main/scripts/install-release.sh | sudo bash -s -- purge
+EOF
+}
+
+purge_release() {
+  uninstall_release
+
+  if [ -d "$DATA_DIR" ]; then
+    rm -rf "$DATA_DIR"
+    info "removed: ${DATA_DIR}"
+  fi
+}
+
+main() {
+  local command
+
+  command="${1:-install}"
+  case "$command" in
+    -h | --help | help)
+      usage
+      ;;
+    install | update)
+      require_root
+      install_release
+      ;;
+    uninstall)
+      require_root
+      uninstall_release
+      ;;
+    purge)
+      require_root
+      purge_release
+      ;;
+    *)
+      usage
+      die "unknown command: ${command}"
+      ;;
+  esac
 }
 
 main "$@"
