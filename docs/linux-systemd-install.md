@@ -109,6 +109,16 @@ curl -d '{"tasks":["magnet:?xt=urn:btih:xx"],"cid":"12345","savepath":"文件夹
   -X POST http://127.0.0.1:8115/add
 ```
 
+## 定时执行 RSS 离线任务
+
+如果希望定时执行 RSS 离线任务，cron 中需要显式进入安装目录，确保读取 `/var/lib/rss2cloud/config.toml`：
+
+```cron
+10 8 * * * cd /var/lib/rss2cloud && /usr/local/bin/rss2cloud >> /var/log/rss2cloud-cron.log 2>&1
+```
+
+这里执行的是普通 RSS 任务，不是 `server`。服务模式继续使用 systemd 管理。
+
 ## 代理注意事项
 
 如果 `node-site-config.json` 中启用了 `httpsAgent`，当前代码会使用 `http://127.0.0.1:10809` 作为代理地址。systemd 服务环境下，这要求代理服务也运行在同一台机器的 `127.0.0.1:10809`。
