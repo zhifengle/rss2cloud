@@ -191,9 +191,51 @@ rss2cloud --rss /path/to/rss.json
 
 从传统配置文件迁移到 `config.toml` 可以逐步进行：
 
+### 使用 Linux 安装脚本时
+
+如果通过 [`install-release.sh`](./linux-systemd-install.md) 安装，脚本会自动创建推荐的 systemd 运行目录和基础配置：
+
+```text
+/var/lib/rss2cloud/config.toml
+/var/lib/rss2cloud/.cookies
+/var/lib/rss2cloud/db.sqlite
+```
+
+服务的 `WorkingDirectory` 是 `/var/lib/rss2cloud`，所以这里的 `config.toml` 会被优先读取。脚本生成的基础配置如下：
+
+```toml
+[auth]
+cookies_file = ".cookies"
+
+[server]
+port = 8115
+
+[database]
+path = "db.sqlite"
+```
+
+从旧配置迁移到脚本安装目录时，可以先把传统文件放到 `/var/lib/rss2cloud`，保持兼容读取：
+
+```bash
+sudo install -m 600 /path/to/.cookies /var/lib/rss2cloud/.cookies
+sudo install -m 600 /path/to/rss.json /var/lib/rss2cloud/rss.json
+sudo install -m 600 /path/to/node-site-config.json /var/lib/rss2cloud/node-site-config.json
+sudo install -m 600 /path/to/db.sqlite /var/lib/rss2cloud/db.sqlite
+```
+
+`db.sqlite` 只在需要保留历史 RSS 任务记录时迁移。完成文件迁移或修改 `config.toml` 后，重启服务：
+
+```bash
+sudo systemctl restart rss2cloud
+```
+
+后续可以继续按下面步骤把 `rss.json` 和 `node-site-config.json` 的内容逐步合并到 `/var/lib/rss2cloud/config.toml`。
+
 ### 步骤 1：创建基础 config.toml
 
-创建 `~/.config/rss2cloud/config.toml`，先配置认证部分：
+普通命令行或手动部署场景，创建 `~/.config/rss2cloud/config.toml`，先配置认证部分：
+
+如果使用 Linux 安装脚本，则编辑 `/var/lib/rss2cloud/config.toml`，不需要再创建 `~/.config/rss2cloud/config.toml`。
 
 ```toml
 [auth]
