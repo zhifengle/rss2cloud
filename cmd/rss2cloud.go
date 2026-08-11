@@ -43,6 +43,11 @@ var (
 				}
 				return
 			}
+			if qrLogin {
+				// -q without other actions: just login and save cookies
+				log.Println("login successful")
+				return
+			}
 			pAgent.ExecuteAllRssTask()
 		},
 	}
@@ -170,10 +175,11 @@ func initAgent(cmd *cobra.Command) *config.Config {
 	})
 
 	var agentErr error
-	if cfg.Auth.Cookies != "" {
-		pAgent, agentErr = p115.NewAgent(cfg.Auth.Cookies)
-	} else if qrLogin {
+	if qrLogin {
+		// -q: try existing cookies first, fall back to qrcode login
 		pAgent, agentErr = p115.NewAgentByQrcode()
+	} else if cfg.Auth.Cookies != "" {
+		pAgent, agentErr = p115.NewAgent(cfg.Auth.Cookies)
 	} else {
 		pAgent, agentErr = p115.New()
 	}

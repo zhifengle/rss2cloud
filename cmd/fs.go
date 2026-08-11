@@ -72,10 +72,11 @@ func initFsSession(ctx context.Context, cmd *cobra.Command) *cloudfs.Session {
 	})
 
 	var agent *p115.Agent
-	if cfg.Auth.Cookies != "" {
-		agent, err = p115.NewAgent(cfg.Auth.Cookies)
-	} else if qrLogin {
+	if qrLogin {
+		// -q: try existing cookies first, fall back to qrcode login
 		agent, err = p115.NewAgentByQrcode()
+	} else if cfg.Auth.Cookies != "" {
+		agent, err = p115.NewAgent(cfg.Auth.Cookies)
 	} else {
 		agent, err = p115.New()
 	}
