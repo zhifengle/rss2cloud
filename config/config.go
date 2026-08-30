@@ -12,6 +12,7 @@ type RssConfig struct {
 	Cid        string `json:"cid,omitempty"`
 	SavePath   string `json:"savepath,omitempty"`
 	Filter     string `json:"filter,omitempty"`
+	Exclude    string `json:"exclude,omitempty"`
 	Expiration uint   `json:"expiration,omitempty"`
 }
 

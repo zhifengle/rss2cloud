@@ -73,25 +73,40 @@ func GetMagnetItemList(config *RssConfig) []MagnetItem {
 		return nil
 	}
 	var itemList []MagnetItem
-	var re *regexp2.Regexp
-	if strings.HasPrefix(config.Filter, "/") && strings.HasSuffix(config.Filter, "/") {
-		re = regexp2.MustCompile(config.Filter[1:len(config.Filter)-1], 0)
-	}
+	whiteRe := compileFilter(config.Filter)
+	blackRe := compileFilter(config.Exclude)
 	for _, item := range feed.Items {
-		flag := true
-		if config.Filter != "" {
-			if re != nil {
-				flag, _ = re.MatchString(item.Title)
-			} else {
-				flag = strings.Contains(item.Title, config.Filter)
-			}
+		if !matchRule(item.Title, config.Filter, whiteRe) {
+			continue
 		}
-		if !flag {
+		if matchRule(item.Title, config.Exclude, blackRe) {
 			continue
 		}
 		itemList = append(itemList, site.GetMagnetItem(item))
 	}
 	return itemList
+}
+
+// compileFilter compiles a /regex/ rule into a regexp2 pattern.
+// A plain substring rule returns nil and is matched via strings.Contains.
+func compileFilter(rule string) *regexp2.Regexp {
+	if strings.HasPrefix(rule, "/") && strings.HasSuffix(rule, "/") {
+		return regexp2.MustCompile(rule[1:len(rule)-1], 0)
+	}
+	return nil
+}
+
+// matchRule reports whether title matches the filter rule.
+// An empty rule matches everything.
+func matchRule(title, rule string, re *regexp2.Regexp) bool {
+	if rule == "" {
+		return true
+	}
+	if re != nil {
+		m, _ := re.MatchString(title)
+		return m
+	}
+	return strings.Contains(title, rule)
 }
 
 func GetMagnetByEnclosure(item *gofeed.Item) string {

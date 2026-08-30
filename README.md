@@ -199,6 +199,7 @@ body 示例：
     {
       "name": "水星的魔女",
       "filter": "简日双语",
+      "exclude": "720p",
       "cid": "2479224057885794455",
       "savepath": "文件夹名称",
       "url": "https://share.dmhy.org/topics/rss/rss.xml?keyword=%E6%B0%B4%E6%98%9F%E7%9A%84%E9%AD%94%E5%A5%B3&sort_id=2&team_id=0&order=date-desc"
@@ -212,6 +213,8 @@ body 示例：
 配置了 `filter` 后，标题包含该文字的会被离线。不设置 `filter` 默认离线全部
 
 `/简体|\\d{3-4}[pP]/` 使用斜线包裹的正则规则。注意转义规则
+
+配置了 `exclude` 后，标题包含该文字的不会被离线（黑名单）。`exclude` 与 `filter` 可同时使用，也支持 `/.../` 正则。
 
 cid 是离线到指定的文件夹 id。
 

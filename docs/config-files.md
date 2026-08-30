@@ -54,6 +54,7 @@ site = "share.dmhy.org"
 name = "水星的魔女"
 savepath = "文件夹名称"
 filter = "简日双语"
+exclude = "720p"            # 可选：排除规则（黑名单），匹配的标题不会被离线
 url = "https://share.dmhy.org/topics/rss/rss.xml?keyword=..."
 cid = "123456"           # 可选：115 目录 ID
 expiration = 3600        # 可选：缓存过期时间（秒）
@@ -108,7 +109,8 @@ Cookie = "UID=xxx; CID=xxx; SEID=xxx; KID=xxx"
 
 - `cid`: 115 云存储目录 ID
 - `savepath`: 保存路径
-- `filter`: 内容过滤规则
+- `filter`: 内容过滤规则（白名单，匹配的标题会被离线）
+- `exclude`: 内容排除规则（黑名单，匹配的标题不会被离线）
 - `expiration`: 缓存过期时间（秒）
 
 #### [sites."<域名>"] 站点配置

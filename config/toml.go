@@ -59,7 +59,8 @@ type TOMLRSSConfig struct {
 	URL        string `toml:"url"`        // Required: RSS feed URL
 	Cid        string `toml:"cid"`        // Optional: 115 directory ID
 	SavePath   string `toml:"savepath"`   // Optional: save path
-	Filter     string `toml:"filter"`     // Optional: content filter
+	Filter     string `toml:"filter"`     // Optional: content filter (whitelist)
+	Exclude    string `toml:"exclude"`     // Optional: content filter (blacklist)
 	Expiration uint   `toml:"expiration"` // Optional: cache expiration
 }
 
@@ -151,6 +152,7 @@ func TransformTOMLRSS(tomlRSS []TOMLRSSConfig) map[string][]RssConfig {
 			Cid:        tr.Cid,
 			SavePath:   tr.SavePath,
 			Filter:     tr.Filter,
+			Exclude:    tr.Exclude,
 			Expiration: tr.Expiration,
 		}
 

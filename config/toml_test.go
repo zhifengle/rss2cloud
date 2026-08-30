@@ -342,7 +342,8 @@ func TestTransformTOMLRSS_PreservesAllFields(t *testing.T) {
 			URL:        "https://example.com/rss",
 			Cid:        "456",
 			SavePath:   "/save/path",
-			Filter:     "filter text",
+		Filter:     "filter text",
+		Exclude:    "exclude text",
 			Expiration: 7200,
 		},
 	}
@@ -370,6 +371,9 @@ func TestTransformTOMLRSS_PreservesAllFields(t *testing.T) {
 	if feed.Filter != "filter text" {
 		t.Errorf("Filter = %q, want %q", feed.Filter, "filter text")
 	}
+if feed.Exclude != "exclude text" {
+	t.Errorf("Exclude = %q, want %q", feed.Exclude, "exclude text")
+}
 	if feed.Expiration != 7200 {
 		t.Errorf("Expiration = %d, want %d", feed.Expiration, 7200)
 	}

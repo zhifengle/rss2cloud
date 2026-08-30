@@ -122,3 +122,38 @@ func TestReadRssConfigDictFromUserConfigDir(t *testing.T) {
 		t.Fatalf("unexpected rss config: %#v", got)
 	}
 }
+
+func TestCompileFilter(t *testing.T) {
+	t.Parallel()
+	// plain substring rules are not compiled into a regex
+	if re := compileFilter("简体内嵌"); re != nil {
+		t.Errorf("compileFilter(plain) = %v, want nil", re)
+	}
+	// /.../-wrapped rules compile into a regex
+	if re := compileFilter("/简体|1080p/"); re == nil {
+		t.Errorf("compileFilter(/regex/) = nil, want non-nil")
+	}
+}
+
+func TestMatchRule(t *testing.T) {
+	t.Parallel()
+	// empty rule matches everything (no whitelist/blacklist restriction)
+	if !matchRule("anything", "", nil) {
+		t.Errorf("empty rule should match all titles")
+	}
+	// plain substring
+	if !matchRule("简日双语 1080p", "简日双语", nil) {
+		t.Errorf("substring present should match")
+	}
+	if matchRule("简体内嵌 720p", "简日双语", nil) {
+		t.Errorf("substring absent should not match")
+	}
+	// regex (whitelist: match to include; blacklist: match to exclude)
+	re := compileFilter("/简体|1080p/")
+	if !matchRule("简体内嵌 1080p", "/简体|1080p/", re) {
+		t.Errorf("regex match should return true")
+	}
+	if matchRule("繁體 720p", "/简体|1080p/", re) {
+		t.Errorf("regex non-match should return false")
+	}
+}
