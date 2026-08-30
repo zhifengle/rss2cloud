@@ -62,6 +62,39 @@ rss2cloud magnet --txt magnet.txt --cid "12345" --savepath "文件夹名称"
 rss2cloud magnet --link "magnet:?xt=urn:btih:12345" --cid "12345" --savepath "文件夹名称/子文件夹名称"
 ```
 
+### 离线任务与历史记录
+
+`rss2cloud task` 查看 115 当前的离线下载任务，`rss2cloud history` 查看本地 `db.sqlite` 里已提交的离线记录。
+
+```bash
+# 查看 task 子命令帮助
+rss2cloud task -h
+# 列出最近的离线任务（默认 50 条）
+rss2cloud task
+# 只看运行中的任务；状态可选 all|done|failed|running
+rss2cloud task --status running
+# 限制条数
+rss2cloud task -n 10
+# 显示完整任务名，不压缩 [标签] 和不截断
+rss2cloud task --full-name
+
+# 查看 history 子命令帮助
+rss2cloud history -h
+# 列出最近提交的离线记录（默认 20 条，最新在前）
+rss2cloud history
+# 按 RSS 订阅配置名过滤
+rss2cloud history --name "VCB-Studio"
+# 限制条数
+rss2cloud history -n 50
+# 显示完整标题，不截断
+rss2cloud history --full-name
+```
+
+说明：
+
+- `task` 直接查询 115 远端任务列表，输出 NAME、SIZE、STATUS、PERCENT 列。默认会压缩任务名里的字幕组、分辨率等标签并截断到固定宽度，`--full-name` 显示原始名称。
+- `history` 查询本地 `rss_items` 表，输出 ID、TITLE、FEED、CREATED、HASH 列。`--name` 按订阅配置名过滤，`HASH` 是 115 离线任务返回的任务哈希。
+
 ### 文件管理命令
 
 `rss2cloud fs` 提供 115 网盘文件管理命令，可用于搜索整理和目录扁平化。

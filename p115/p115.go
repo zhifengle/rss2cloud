@@ -183,17 +183,38 @@ func (ag *Agent) addCloudTasks(magnetItems []rsssite.MagnetItem, config *rsssite
 		for _, item := range items {
 			urls = append(urls, item.Magnet)
 		}
-		_, err := ag.Agent.OfflineAddUrl(urls, &option.OfflineAddOptions{SaveDirId: config.Cid, SavePath: config.SavePath})
+		hashes, err := ag.Agent.OfflineAddUrl(urls, &option.OfflineAddOptions{SaveDirId: config.Cid, SavePath: config.SavePath})
 		if err != nil {
 			log.Printf("Add offline error: %s\n", err)
 			return
 		}
-		log.Printf("[%s] [%s] add %d tasks\n", config.Name, config.Url, len(urls))
-		ag.StoreInstance.SaveMagnetItems(filterdItems)
+		successfulItems, successfulHashes := successfulMagnetItems(items, hashes, func(item rsssite.MagnetItem) {
+			log.Printf("[warning] [%s] offline task was not accepted: %s\n", config.Name, item.Title)
+		})
+		log.Printf("[%s] [%s] add %d/%d tasks\n", config.Name, config.Url, len(successfulItems), len(urls))
+		if err := ag.StoreInstance.SaveMagnetItems(successfulItems, config.Name, config.Url, successfulHashes); err != nil {
+			log.Printf("Save magnet items error: %s\n", err)
+		}
 		if i != len(filterdItems)/defaultChunkSize {
 			time.Sleep(time.Second * time.Duration(chunkDelay))
 		}
 	}
+}
+
+func successfulMagnetItems(items []rsssite.MagnetItem, hashes []string, rejected func(rsssite.MagnetItem)) ([]rsssite.MagnetItem, []string) {
+	successfulItems := make([]rsssite.MagnetItem, 0, len(items))
+	successfulHashes := make([]string, 0, len(items))
+	for i, item := range items {
+		if i >= len(hashes) || hashes[i] == "" {
+			if rejected != nil {
+				rejected(item)
+			}
+			continue
+		}
+		successfulItems = append(successfulItems, item)
+		successfulHashes = append(successfulHashes, hashes[i])
+	}
+	return successfulItems, successfulHashes
 }
 
 func (ag *Agent) AddRssUrlTask(url string) {
@@ -241,6 +262,32 @@ func (ag *Agent) AddMagnetTask(magnets []string, cid string, savepath string) {
 func (ag *Agent) OfflineClear(num int) (err error) {
 	flag := elevengo.OfflineClearFlag(num)
 	return ag.Agent.OfflineClear(flag)
+}
+
+// ListOfflineTasks returns current offline downloading tasks from 115.
+// A positive limit stops remote pagination as soon as enough matching tasks
+// have been collected. A nil include function matches every task.
+func (ag *Agent) ListOfflineTasks(limit int, include func(*elevengo.OfflineTask) bool) ([]elevengo.OfflineTask, error) {
+	it, err := ag.Agent.OfflineIterate()
+	if err != nil {
+		return nil, err
+	}
+	var tasks []elevengo.OfflineTask
+	seen := 0
+	for _, t := range it.Items() {
+		seen++
+		if include != nil && !include(t) {
+			continue
+		}
+		tasks = append(tasks, *t)
+		if limit > 0 && len(tasks) >= limit {
+			return tasks, nil
+		}
+	}
+	if seen < it.Count() {
+		return nil, fmt.Errorf("offline task listing stopped early: received %d of %d tasks", seen, it.Count())
+	}
+	return tasks, nil
 }
 
 func SaveCookies(agent *elevengo.Agent) {

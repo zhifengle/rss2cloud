@@ -1,3 +1,13 @@
+# v0.2.4
+
+## 变动
+
+- RSS 订阅配置项（`rss.json` 与 `config.toml`）新增可选 `exclude` 字段（黑名单），标题命中 `exclude` 的条目不会被离线；可与 `filter`（白名单）同时使用，同样支持 `/正则/` 形式。
+- 新增 `rss2cloud task` 子命令，列出 115 当前的离线下载任务，支持 `--limit/-n`、`--status/-s`（all|done|failed|running）和 `--full-name` 参数，输出 NAME、SIZE、STATUS、PERCENT 列。
+- 新增 `rss2cloud history` 子命令，列出本地 `db.sqlite` 中已提交的离线记录，支持 `--limit/-n`、`--name`（按订阅配置名过滤）和 `--full-name` 参数，输出 ID、TITLE、FEED、CREATED、HASH 列。
+- `rss_items` 表新增 `configName`、`configUrl`、`taskHash` 列，记录每条离线任务的来源订阅与 115 任务哈希；`Store` 初始化时执行幂等的 `migrateSchema`，自动为旧库补齐新列。
+- `SaveMagnetItems` 改为同时写入订阅配置名、URL 和 115 返回的任务哈希，`addCloudTasks` 在添加离线任务后落库这些信息。
+- `p115.Agent` 新增 `ListOfflineTasks` 方法，按状态过滤并分页拉取 115 离线任务，达到 `limit` 提前停止，拉取不完整时返回错误。
 # v0.2.3
 
 ## 变动

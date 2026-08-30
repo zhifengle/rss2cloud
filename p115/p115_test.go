@@ -2,6 +2,7 @@ package p115
 
 import (
 	"errors"
+	"iter"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,6 +16,77 @@ import (
 	"github.com/zhifengle/rss2cloud/store"
 )
 
+type offlineIteratorStub struct {
+	tasks   []elevengo.OfflineTask
+	count   int
+	yielded int
+}
+
+func (it *offlineIteratorStub) Count() int {
+	return it.count
+}
+
+func (it *offlineIteratorStub) Items() iter.Seq2[int, *elevengo.OfflineTask] {
+	return func(yield func(int, *elevengo.OfflineTask) bool) {
+		for i := range it.tasks {
+			it.yielded++
+			if !yield(i, &it.tasks[i]) {
+				return
+			}
+		}
+	}
+}
+
+func TestListOfflineTasksStopsAtMatchingLimit(t *testing.T) {
+	it := &offlineIteratorStub{
+		count: 4,
+		tasks: []elevengo.OfflineTask{
+			{Name: "failed", Status: -1},
+			{Name: "running-1", Status: 1},
+			{Name: "running-2", Status: 1},
+			{Name: "unread", Status: 1},
+		},
+	}
+	patch := mockey.Mock((*elevengo.Agent).OfflineIterate).To(
+		func(*elevengo.Agent) (elevengo.Iterator[elevengo.OfflineTask], error) {
+			return it, nil
+		},
+	).Build()
+	defer patch.UnPatch()
+
+	ag := &Agent{Agent: &elevengo.Agent{}}
+	tasks, err := ag.ListOfflineTasks(2, func(task *elevengo.OfflineTask) bool {
+		return task.IsRunning()
+	})
+	if err != nil {
+		t.Fatalf("ListOfflineTasks failed: %v", err)
+	}
+	if len(tasks) != 2 || tasks[0].Name != "running-1" || tasks[1].Name != "running-2" {
+		t.Fatalf("unexpected tasks: %#v", tasks)
+	}
+	if it.yielded != 3 {
+		t.Fatalf("yielded %d tasks, want 3", it.yielded)
+	}
+}
+
+func TestListOfflineTasksReportsIncompleteIteration(t *testing.T) {
+	it := &offlineIteratorStub{
+		count: 3,
+		tasks: []elevengo.OfflineTask{{Name: "first"}, {Name: "second"}},
+	}
+	patch := mockey.Mock((*elevengo.Agent).OfflineIterate).To(
+		func(*elevengo.Agent) (elevengo.Iterator[elevengo.OfflineTask], error) {
+			return it, nil
+		},
+	).Build()
+	defer patch.UnPatch()
+
+	ag := &Agent{Agent: &elevengo.Agent{}}
+	if _, err := ag.ListOfflineTasks(20, nil); err == nil {
+		t.Fatal("expected incomplete iteration error")
+	}
+}
+
 func TestAddCloudTasksSavesOnlySuccessfulChunk(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -24,6 +96,13 @@ func TestAddCloudTasksSavesOnlySuccessfulChunk(t *testing.T) {
 
 	mock.ExpectExec("CREATE TABLE if not exists `rss_items`").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec("CREATE TABLE if not exists `sites_status`").WillReturnResult(sqlmock.NewResult(0, 0))
+	// migrateSchema probes existing columns; report the history columns as
+	// present so no ALTER statements are issued.
+	mock.ExpectQuery("PRAGMA table_info").
+		WillReturnRows(sqlmock.NewRows([]string{"cid", "name", "type", "notnull", "dflt_value", "pk"}).
+			AddRow(0, "configName", "VARCHAR(255)", 0, nil, 0).
+			AddRow(1, "configUrl", "VARCHAR(255)", 0, nil, 0).
+			AddRow(2, "taskHash", "VARCHAR(255)", 0, nil, 0))
 
 	for range 3 {
 		mock.ExpectQuery("SELECT count\\(\\*\\) AS num FROM rss_items WHERE magnet = \\?").
@@ -31,11 +110,11 @@ func TestAddCloudTasksSavesOnlySuccessfulChunk(t *testing.T) {
 			WillReturnRows(sqlmock.NewRows([]string{"num"}).AddRow(0))
 	}
 
-	for range 2 {
-		mock.ExpectExec("INSERT INTO rss_items").
-			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), 0, sqlmock.AnyArg(), sqlmock.AnyArg()).
-			WillReturnResult(sqlmock.NewResult(1, 1))
-	}
+	mock.ExpectBegin()
+	mock.ExpectExec("INSERT INTO rss_items").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), "ok", 0, sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
 
 	callCount := 0
 	patch := mockey.Mock((*elevengo.Agent).OfflineAddUrl).To(
@@ -44,7 +123,7 @@ func TestAddCloudTasksSavesOnlySuccessfulChunk(t *testing.T) {
 			if callCount == 2 {
 				return nil, errors.New("second chunk failed")
 			}
-			return []string{"ok"}, nil
+			return []string{"ok", ""}, nil
 		},
 	).Build()
 	defer patch.UnPatch()
@@ -70,6 +149,23 @@ func TestAddCloudTasksSavesOnlySuccessfulChunk(t *testing.T) {
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unexpected db interactions: %v", err)
+	}
+}
+
+func TestSuccessfulMagnetItemsPreservesHashAlignment(t *testing.T) {
+	items := []rsssite.MagnetItem{{Title: "one"}, {Title: "two"}, {Title: "three"}}
+	var rejected []string
+	gotItems, gotHashes := successfulMagnetItems(items, []string{"hash-one", "", "hash-three"}, func(item rsssite.MagnetItem) {
+		rejected = append(rejected, item.Title)
+	})
+	if len(gotItems) != 2 || gotItems[0].Title != "one" || gotItems[1].Title != "three" {
+		t.Fatalf("unexpected successful items: %#v", gotItems)
+	}
+	if len(gotHashes) != 2 || gotHashes[0] != "hash-one" || gotHashes[1] != "hash-three" {
+		t.Fatalf("unexpected successful hashes: %#v", gotHashes)
+	}
+	if len(rejected) != 1 || rejected[0] != "two" {
+		t.Fatalf("unexpected rejected items: %#v", rejected)
 	}
 }
 
