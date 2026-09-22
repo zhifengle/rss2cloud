@@ -10,19 +10,33 @@ import (
 )
 
 func TestDmhy(t *testing.T) {
+	if os.Getenv("RSS2CLOUD_TEST_LIVE") == "" {
+		t.Skip("set RSS2CLOUD_TEST_LIVE=1 to test the live Dmhy RSS")
+	}
 	dmhy := &Dmhy{}
 	fp := gofeed.NewParser()
-	feed, _ := fp.ParseURL("https://share.dmhy.org/topics/rss/rss.xml")
-	t.Log(feed)
+	feed, err := fp.ParseURL("https://share.dmhy.org/topics/rss/rss.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, item := range feed.Items {
 		t.Log(dmhy.GetMagnetItem(item))
 	}
 }
 
 func TestAcgnx(t *testing.T) {
+	if os.Getenv("RSS2CLOUD_TEST_LIVE") == "" {
+		t.Skip("set RSS2CLOUD_TEST_LIVE=1 to test the live Acgnx RSS")
+	}
 	acgnx := &Acgnx{}
 	fp := gofeed.NewParser()
-	feed, _ := fp.ParseURL("https://share.acgnx.net/rss.xml")
+	feed, err := fp.ParseURL("https://share.acgnx.net/rss.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(feed.Items) == 0 {
+		t.Fatal("expected at least one Acgnx item")
+	}
 	for _, item := range feed.Items[:1] {
 		t.Log(acgnx.GetMagnetItem(item))
 	}
@@ -155,5 +169,54 @@ func TestMatchRule(t *testing.T) {
 	}
 	if matchRule("繁體 720p", "/简体|1080p/", re) {
 		t.Errorf("regex non-match should return false")
+	}
+}
+
+func TestMagnetItemsFromFeedFilters(t *testing.T) {
+	feed := &gofeed.Feed{Items: []*gofeed.Item{
+		{Title: "WEB-DL keep", Link: "https://mikanani.me/Home/Episode/1111111111111111111111111111111111111111"},
+		{Title: "WEB-DL exclude", Link: "https://mikanani.me/Home/Episode/2222222222222222222222222222222222222222"},
+		{Title: "BluRay keep", Link: "https://mikanani.me/Home/Episode/3333333333333333333333333333333333333333"},
+	}}
+
+	tests := []struct {
+		name    string
+		filter  string
+		exclude string
+		want    []string
+	}{
+		{
+			name:   "empty exclude keeps all matching filter items",
+			filter: "WEB-DL",
+			want:   []string{"WEB-DL keep", "WEB-DL exclude"},
+		},
+		{
+			name:    "exclude removes matching items after filter",
+			filter:  "WEB-DL",
+			exclude: "exclude",
+			want:    []string{"WEB-DL keep"},
+		},
+		{
+			name:   "regular expression filter",
+			filter: "/WEB-DL|BluRay/",
+			want:   []string{"WEB-DL keep", "WEB-DL exclude", "BluRay keep"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			items := magnetItemsFromFeed(feed, &Mikanani{}, &RssConfig{Filter: tt.filter, Exclude: tt.exclude})
+			if len(items) != len(tt.want) {
+				t.Fatalf("got %d items, want %d: %#v", len(items), len(tt.want), items)
+			}
+			for i, want := range tt.want {
+				if items[i].Title != want {
+					t.Errorf("item %d title = %q, want %q", i, items[i].Title, want)
+				}
+				if items[i].Magnet == "" {
+					t.Errorf("item %d has an empty magnet", i)
+				}
+			}
+		})
 	}
 }

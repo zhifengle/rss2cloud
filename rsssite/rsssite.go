@@ -72,6 +72,10 @@ func GetMagnetItemList(config *RssConfig) []MagnetItem {
 	if feed == nil {
 		return nil
 	}
+	return magnetItemsFromFeed(feed, site, config)
+}
+
+func magnetItemsFromFeed(feed *gofeed.Feed, site MagnetSite, config *RssConfig) []MagnetItem {
 	var itemList []MagnetItem
 	whiteRe := compileFilter(config.Filter)
 	blackRe := compileFilter(config.Exclude)
@@ -79,7 +83,7 @@ func GetMagnetItemList(config *RssConfig) []MagnetItem {
 		if !matchRule(item.Title, config.Filter, whiteRe) {
 			continue
 		}
-		if matchRule(item.Title, config.Exclude, blackRe) {
+		if config.Exclude != "" && matchRule(item.Title, config.Exclude, blackRe) {
 			continue
 		}
 		itemList = append(itemList, site.GetMagnetItem(item))
