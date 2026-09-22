@@ -11,6 +11,7 @@ COOKIES_FILE="${DATA_DIR}/.cookies"
 DB_FILE="${DATA_DIR}/db.sqlite"
 SERVICE_FILE='/etc/systemd/system/rss2cloud.service'
 SERVICE_PORT='8115'
+archive_tmp_dir=''
 
 info() {
   echo "info: $*"
@@ -148,6 +149,8 @@ Description=rss2cloud server
 Documentation=https://github.com/${REPO}
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=2
 
 [Service]
 Type=simple
@@ -155,8 +158,6 @@ WorkingDirectory=${DATA_DIR}
 ExecStart=${BIN_PATH} server
 Restart=on-failure
 RestartSec=10s
-StartLimitIntervalSec=300
-StartLimitBurst=2
 UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true
@@ -194,7 +195,7 @@ EOF
 }
 
 install_release() {
-  local arch version tmp_dir tmp_file
+  local arch version tmp_file
 
   require_linux_systemd
   require_command curl
@@ -205,14 +206,14 @@ install_release() {
 
   arch="$(detect_arch)"
   version="$(latest_version)"
-  tmp_dir="$(mktemp -d)"
-  tmp_file="${tmp_dir}/${APP_NAME}.tar.gz"
-  trap 'rm -rf "$tmp_dir"' EXIT
+  archive_tmp_dir="$(mktemp -d)"
+  tmp_file="${archive_tmp_dir}/${APP_NAME}.tar.gz"
+  trap 'rm -rf -- "${archive_tmp_dir:?}"' EXIT
 
   download_binary "$version" "$arch" "$tmp_file"
   install_config_dir
   install_default_config
-  install_binary "$tmp_file" "$tmp_dir"
+  install_binary "$tmp_file" "$archive_tmp_dir"
   install_systemd_service
   print_install_next_steps
 }
