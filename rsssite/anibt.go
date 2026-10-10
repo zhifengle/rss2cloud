@@ -1,6 +1,7 @@
 package rsssite
 
 import (
+	"encoding/hex"
 	"encoding/xml"
 	"strings"
 
@@ -14,7 +15,15 @@ func (r *Anibt) GetMagnet(item *gofeed.Item) string {
 	if magnet := parseAnibtTorrentCustom(item.Custom["torrent"]); magnet != "" {
 		return trimMagnetDN(magnet)
 	}
-	return GetMagnetByEnclosure(item)
+	// A torrent download URL would create an HTTP download of the .torrent
+	// file in 115, rather than an offline task for its contents.
+	for _, enclosure := range item.Enclosures {
+		magnet := strings.TrimSpace(enclosure.URL)
+		if strings.HasPrefix(magnet, "magnet:?") {
+			return trimMagnetDN(magnet)
+		}
+	}
+	return ""
 }
 
 func (r *Anibt) GetMagnetItem(item *gofeed.Item) MagnetItem {
@@ -43,10 +52,18 @@ func parseAnibtTorrentCustom(value string) string {
 	}
 
 	magnet := strings.TrimSpace(torrent.MagnetURI)
-	if !strings.HasPrefix(magnet, "magnet:?") {
+	if strings.HasPrefix(magnet, "magnet:?") {
+		return magnet
+	}
+
+	hash := strings.TrimSpace(torrent.InfoHash)
+	if len(hash) != 40 {
 		return ""
 	}
-	return magnet
+	if _, err := hex.DecodeString(hash); err != nil {
+		return ""
+	}
+	return "magnet:?xt=urn:btih:" + strings.ToLower(hash)
 }
 
 func trimMagnetDN(magnet string) string {
