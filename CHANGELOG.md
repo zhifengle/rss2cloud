@@ -1,9 +1,8 @@
-# v0.2.5
+# v0.2.6
 
 ## 变动
 
-- 修复未配置 `exclude` 时 RSS 条目被全部过滤、导致显示 `0 task` 的问题。
-- 增加 Mikanani 搜索 RSS 样本解析测试，校验条目标题、Episode 链接和磁力链提取。
-- 增加 `filter`、`exclude` 及正则筛选的回归测试。
-- 移除依赖 `mockey` 的测试与模块依赖；现在可直接运行 `go test ./...`，无需额外编译参数。
-- 默认跳过 Dmhy 和 Acgnx 的在线 RSS 探测测试；设置 `RSS2CLOUD_TEST_LIVE=1` 后可手动执行。
+- 适配 AniBT RSS：缺少有效 `magneturi` 时，使用有效的 40 位十六进制 `infohash` 生成磁力链。
+- AniBT 的 enclosure 回退仅接受磁力链，避免将 `.torrent` 下载地址作为普通 HTTP 下载提交给 115。
+- 修复安装脚本在 `set -u` 模式下退出清理时访问已超出作用域的临时目录变量的问题。
+- 将 systemd 的 `StartLimitIntervalSec` 和 `StartLimitBurst` 移至 `[Unit]`，使服务启动频率限制正确生效。
