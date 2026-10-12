@@ -8,36 +8,34 @@
 
 基于 [Nahuimi/elevengo](https://github.com/Nahuimi/elevengo)
 
-支持 RSS 源: nyaa, dmhy, mikanni, share.acgnx.net
+支持以下 RSS 源（按订阅 URL 的域名识别）：
+
+- 蜜柑计划：`mikanani.me`、`mikanime.tv`
+- Nyaa：`nyaa.si`、`sukebei.nyaa.si`
+- 动漫花园：`share.dmhy.org`
+- ACGNX：`share.acgnx.se`、`share.acgnx.net`、`www.acgnx.se`
+- RSSHub：`rsshub.app`（从 RSS 条目的 enclosure 中读取下载链接）
+- AniBT：`anibt.net`
 
 已添加的 RSS 任务记录保存在本地的同一目录下面的 db.sqlite 文件里
 
 Rust 版本 [rss2pan](https://github.com/zhifengle/rss2pan) 使用的 Web API 添加离线任务。
-
-移除读取浏览器 cookies 的功能。需要此功能使用 [gcookie](https://github.com/zhifengle/gcookie)
 
 ## 文档
 
 - [配置文件说明](./docs/config-files.md)：推荐使用统一的 `config.toml`，也说明了传统 `rss.json`、`node-site-config.json`、`.cookies` 的兼容读取规则。
 - [Linux systemd 安装](./docs/linux-systemd-install.md)：安装 release 二进制并注册为 systemd 服务，支持安装、更新、卸载和清理数据。
 
-```bat
-REM 使用 gcookie 读取浏览器的 cookie
-gcookie.exe 115.com > .cookies
-REM rss2cloud 会读取 .cookies 文件
-rss2cloud.exe
-```
-
 ## 用法
 
-在同一目录下面，配置好 `rss.json` 和 `node-site-config.json`
+推荐使用统一的 `config.toml` 配置认证、RSS 订阅和站点选项。配置文件可放在当前工作目录或 `~/.config/rss2cloud/` 下，程序优先读取当前工作目录的配置。完整示例和字段说明见 [配置文件说明](./docs/config-files.md)。
 
-在命令行运行 `rss2cloud`
+原有的 `rss.json` 和 `node-site-config.json` 仍兼容，无需立即迁移。配置完成后，在命令行运行 `rss2cloud`：
 
 ```bash
 # 查看帮助
 rss2cloud -h
-# 直接运行。读取 rss.json，依次添加离线任务
+# 直接运行，按配置的 RSS 订阅依次添加离线任务
 rss2cloud
 # 使用二维码登录
 rss2cloud -q
@@ -45,7 +43,7 @@ rss2cloud -q
 rss2cloud --cookies "yourcookies"
 
 # 指定 rss URL 离线下载
-# 如果 rss.json 存在这条url 的配置，会读取配置。没有配置，默认离线到 115 的默认目录
+# 如果 RSS 配置中存在该 URL，则使用对应的订阅配置；否则离线到 115 的默认目录
 rss2cloud -u "https://mikanani.me/RSS/Bangumi?bangumiId=2739&subgroupid=12"
 # --no-cache 跳过检查 db.sqlite 里面缓存的
 rss2cloud --no-cache -u "https://mikanani.me/RSS/Bangumi?bangumiId=2739&subgroupid=12"
